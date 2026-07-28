@@ -131,11 +131,35 @@ async function findOrCreateLocation(name, { address, gst_number } = {}) {
 export async function ensureAssetFromPurchase(purchase, unitsToCreate = null) {
   if (!purchase?.id) return [];
 
+  // BUGFIX (Step 4 — bulk order + partial delivery + inventory delete):
+  // the unit number baked into each auto-generated Asset Tag
+  // ("PO-XXXXXX-01", "-02", ...) used to be derived from a live
+  // COUNT(*) of surviving `assets` rows for this purchase_id. That's
+  // fine until an admin deletes ONE unit from Inventory mid-way through
+  // a multi-delivery bulk order: the count drops, but the *tags already
+  // issued* to the surviving sibling units don't change. The next
+  // partial delivery would then recompute a "next" unit number that's
+  // still in use by one of those siblings, the INSERT would hit the
+  // assets_asset_tag_key UNIQUE constraint, ensureAssetFromPurchase
+  // would throw, and — since the caller only logs that error — NONE of
+  // the newly-delivered units for that call would ever reach Inventory,
+  // even though purchases.delivered_quantity had already moved on.
+  //
+  // Fix: number new units off the HIGHEST unit number ever issued for
+  // this purchase (parsed back out of existing asset_tag values), which
+  // only ever goes up and is immune to rows being deleted later. The
+  // COUNT is still used — unchanged — to cap how many NEW rows are
+  // created so a purchase can never end up with more asset rows than
+  // were actually ordered.
   const { rows: existing } = await pool.query(
-    `SELECT COUNT(*)::int AS c FROM assets WHERE purchase_id = $1::uuid`,
+    `SELECT
+        COUNT(*)::int AS c,
+        COALESCE(MAX((regexp_match(asset_tag, '(\\d+)$'))[1]::int), 0) AS max_unit
+     FROM assets WHERE purchase_id = $1::uuid`,
     [purchase.id]
   );
   const alreadyCreated = existing[0].c;
+  const maxUnitIssued = existing[0].max_unit;
   const totalQuantity = Math.max(1, parseInt(purchase.quantity, 10) || 1);
   const remaining = totalQuantity - alreadyCreated;
   const countToCreate = unitsToCreate != null ? Math.min(parseInt(unitsToCreate, 10) || 0, remaining) : remaining;
@@ -149,7 +173,7 @@ export async function ensureAssetFromPurchase(purchase, unitsToCreate = null) {
 
   const insertedIds = [];
   for (let i = 1; i <= countToCreate; i++) {
-    const unitNumber = alreadyCreated + i;
+    const unitNumber = maxUnitIssued + i; // never reuses a tag number still held by a surviving sibling unit
     const autoTag = totalQuantity > 1 ? `PO-${purchaseRef}-${String(unitNumber).padStart(2, '0')}` : null;
     const { rows } = await pool.query(
       `INSERT INTO assets (asset_name, purchase_id, vendor_id, purchase_date, cost, asset_tag)
