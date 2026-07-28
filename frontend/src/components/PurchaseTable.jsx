@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ArrowUpDown, AlertTriangle, Trash2, Wrench, CheckCircle2, Loader2, History } from 'lucide-react';
+import { ArrowUpDown, AlertTriangle, Trash2, Wrench, CheckCircle2, Loader2, History, Pencil } from 'lucide-react';
 import { StatusSelect } from './StatusBadge.jsx';
 import FilesCell from './FilesCell.jsx';
 import AdvancePaymentEditor from './AdvancePaymentEditor.jsx';
 import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
+import EditPurchaseModal from './EditPurchaseModal.jsx';
 import { SkeletonTableRows } from './Skeleton.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -43,10 +44,10 @@ const SORTABLE_KEYS = new Set([
  * inline without leaving the table.
  */
 export default function PurchaseTable({
-  purchases, sort, onSortChange, loading,
+  purchases, sort, onSortChange, loading, vendors, locations,
   onStatusChange, onDeleteClick,
   onInsuranceToggle, onUploadPhotos, onUploadInvoices, onDeleteFile,
-  onModifyAdvancePayment, onCompleteMaintenance, onRecordDelivery,
+  onModifyAdvancePayment, onCompleteMaintenance, onRecordDelivery, onEditPurchase,
 }) {
   const { isAdmin } = useAuth();
   const [sortBy, sortDir] = sort.split(':');
@@ -54,6 +55,7 @@ export default function PurchaseTable({
   const [completingId, setCompletingId] = useState(null);
   const [historyTarget, setHistoryTarget] = useState(null); // purchase | null
   const [deliveryTarget, setDeliveryTarget] = useState(null); // purchase | null
+  const [editTarget, setEditTarget] = useState(null); // purchase | null
 
   // Only show the Maintenance column at all if at least one visible
   // purchase actually has something to show there — a plain "not
@@ -229,6 +231,15 @@ export default function PurchaseTable({
                       >
                         <History size={15} />
                       </button>
+                      {isAdmin && onEditPurchase && (
+                        <button
+                          onClick={() => setEditTarget(p)}
+                          title="Edit purchase"
+                          className="rounded-lg p-2 text-slate-300 opacity-0 transition-all hover:bg-slate-100 hover:text-brand-600 group-hover:opacity-100"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      )}
                       {isAdmin && (
                         <button
                           onClick={() => onDeleteClick(p)}
@@ -260,6 +271,16 @@ export default function PurchaseTable({
           purchase={deliveryTarget}
           onClose={() => setDeliveryTarget(null)}
           onSubmit={onRecordDelivery}
+        />
+      )}
+
+      {editTarget && (
+        <EditPurchaseModal
+          purchase={editTarget}
+          vendors={vendors}
+          locations={locations}
+          onClose={() => setEditTarget(null)}
+          onSubmit={(form) => onEditPurchase(editTarget.id, form)}
         />
       )}
     </div>

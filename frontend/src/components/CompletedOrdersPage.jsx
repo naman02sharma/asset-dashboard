@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, ChevronLeft, ChevronRight, Wrench, Trash2, ArrowLeft, Loader2, ShieldCheck, Download, History } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Wrench, Trash2, ArrowLeft, Loader2, ShieldCheck, Download, History, Pencil } from 'lucide-react';
 import { api } from '../api/api.js';
 import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
 import { SkeletonCardRows } from './Skeleton.jsx';
@@ -7,6 +7,7 @@ import AdvancePaymentEditor from './AdvancePaymentEditor.jsx';
 import SpendTrendChart from './SpendTrendChart.jsx';
 import MaintenanceCalendarCard from './MaintenanceCalendarCard.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
+import EditPurchaseModal from './EditPurchaseModal.jsx';
 import FilesCell from './FilesCell.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -22,7 +23,7 @@ const PAGE_SIZE = 20;
  * server-side so this stays fast even with hundreds of rows and
  * attached images — nothing beyond the current page is ever fetched.
  */
-export default function CompletedOrdersPage({ vendors, onBack, showToast, embedded = false, initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onSummaryChange }) {
+export default function CompletedOrdersPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onEditPurchase, onSummaryChange }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -202,6 +203,9 @@ export default function CompletedOrdersPage({ vendors, onBack, showToast, embedd
             showToast={showToast}
             onModifyAdvancePayment={onModifyAdvancePayment ? async (id, amt) => handleRowUpdated(await onModifyAdvancePayment(id, amt)) : null}
             onRecordDelivery={onRecordDelivery ? async (id, data) => handleRowUpdated(await onRecordDelivery(id, data)) : null}
+            onEditPurchase={onEditPurchase ? async (id, form) => handleRowUpdated(await onEditPurchase(id, form)) : null}
+            vendors={vendors}
+            locations={locations}
             onUploadPhotos={handleUploadPhotos}
             onUploadInvoices={handleUploadInvoices}
             onInsuranceToggle={handleInsuranceToggle}
@@ -229,10 +233,11 @@ export default function CompletedOrdersPage({ vendors, onBack, showToast, embedd
   );
 }
 
-function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, onDelete, showToast, onModifyAdvancePayment, onRecordDelivery, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile, onSummaryChange }) {
+function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, onDelete, showToast, onModifyAdvancePayment, onRecordDelivery, onEditPurchase, vendors, locations, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile, onSummaryChange }) {
   const { isAdmin } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [showDelivery, setShowDelivery] = useState(false);
   const isPartial = p.order_status === 'partially_delivered';
 
@@ -305,6 +310,13 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
           className="rounded-lg px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition-colors">
           {expanded ? 'Hide' : 'Manage'}
         </button>
+        {isAdmin && onEditPurchase && (
+          <button onClick={() => setShowEdit(true)}
+            title="Edit purchase"
+            className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600">
+            <Pencil size={15} />
+          </button>
+        )}
         <button onClick={() => setShowHistory(true)}
           title="View history"
           className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600">
@@ -333,6 +345,16 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
 
       {showDelivery && (
         <RecordDeliveryModal purchase={p} onClose={() => setShowDelivery(false)} onSubmit={onRecordDelivery} />
+      )}
+
+      {showEdit && (
+        <EditPurchaseModal
+          purchase={p}
+          vendors={vendors}
+          locations={locations}
+          onClose={() => setShowEdit(false)}
+          onSubmit={(form) => onEditPurchase(p.id, form)}
+        />
       )}
     </div>
   );

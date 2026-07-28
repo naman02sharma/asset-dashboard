@@ -161,6 +161,25 @@ CREATE TABLE financial_audit_log (
 CREATE INDEX idx_financial_audit_purchase ON financial_audit_log(purchase_id);
 
 -- ---------------------------------------------------------------------
+-- Purchase change log (014_purchase_change_log.sql): backs the
+-- admin-only "Edit" capability on a purchase record — every OTHER
+-- field besides Advance Money Paid (which stays in financial_audit_log
+-- above). Same one-row-per-field, same-transaction pattern as
+-- asset_change_log further below.
+-- ---------------------------------------------------------------------
+CREATE TABLE purchase_change_log (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    purchase_id     UUID NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+    field_name      VARCHAR(50) NOT NULL,
+    previous_value  TEXT,
+    new_value       TEXT,
+    changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_purchase_change_log_purchase ON purchase_change_log(purchase_id);
+
+-- ---------------------------------------------------------------------
 -- Multiple uploaded files per purchase — an asset can have several
 -- insurance photos and several invoice pages, so this is a proper
 -- one-to-many table rather than a single-path column.

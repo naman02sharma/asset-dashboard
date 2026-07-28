@@ -64,6 +64,7 @@ psql asset_dashboard -f database/005_maintenance_files_audit.sql
 psql asset_dashboard -f database/006_inventory_assets.sql
 psql asset_dashboard -f database/011_user_roles.sql
 psql asset_dashboard -f database/013_user_approval.sql
+psql asset_dashboard -f database/014_purchase_change_log.sql
 ```
 
 (All five migrations are already merged into `schema.sql` for a brand new

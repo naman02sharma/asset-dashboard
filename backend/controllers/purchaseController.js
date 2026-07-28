@@ -413,6 +413,161 @@ export async function createPurchase(req, res) {
   res.status(201).json(fullRows[0]);
 }
 
+// Fields eligible for change-log tracking on a general edit —
+// deliberately a whitelist, same reasoning as assetController's
+// TRACKED_FIELDS. Money (amount_paid) and status/insurance/maintenance
+// are deliberately EXCLUDED here — each already has its own
+// purpose-built endpoint (advance-payment, status, insurance,
+// maintenance) with its own validation and its own log
+// (financial_audit_log for money), so routing them through this
+// generic editor too would let the two paths disagree about what
+// changed. delivered_quantity is excluded for the same reason: it's
+// only ever moved by the delivery flow (recordPartialDelivery /
+// updatePurchaseStatus), never hand-edited.
+const PURCHASE_TRACKED_FIELDS = [
+  'item_name', 'po_number', 'description', 'vendor_id', 'quantity', 'unit_cost',
+  'order_date', 'expected_delivery_date', 'delivery_location_id', 'courier_name', 'tracking_number',
+];
+
+/**
+ * PATCH /api/purchases/:id — admin-only general edit of a purchase
+ * record's own fields (Asset Purchase / Order History / anywhere else
+ * this row is shown — there's only one row, see section 5 of the
+ * README). Every changed field is diffed against the current row and
+ * written to purchase_change_log, one row per field, in the SAME
+ * transaction as the update — so the visible data and its audit trail
+ * can never disagree about what changed. Mirrors assetController's
+ * updateAsset field-for-field.
+ *
+ * Accepts vendor_name / location_name as free text, same
+ * lookup-or-create behavior as POST /api/purchases (findOrCreateVendor
+ * / findOrCreateLocation) — an admin can retype an existing vendor or
+ * type a brand new one without needing its id.
+ */
+export async function updatePurchase(req, res) {
+  const { id } = req.params;
+  const body = { ...req.body };
+
+  if (body.vendor_name !== undefined) {
+    if (!body.vendor_name || !body.vendor_name.trim()) {
+      return res.status(400).json({ error: 'Vendor name cannot be empty.' });
+    }
+    body.vendor_id = await findOrCreateVendor(body.vendor_name, {
+      gst_number: body.vendor_gst_number, address: body.vendor_address, phone: body.vendor_phone,
+    });
+    delete body.vendor_name;
+    delete body.vendor_gst_number;
+    delete body.vendor_address;
+    delete body.vendor_phone;
+  }
+  if (body.location_name !== undefined) {
+    body.delivery_location_id = body.location_name
+      ? await findOrCreateLocation(body.location_name, { address: body.location_address, gst_number: body.location_gst_number })
+      : null;
+    delete body.location_name;
+    delete body.location_address;
+    delete body.location_gst_number;
+  }
+
+  if (body.item_name !== undefined && !body.item_name.trim()) {
+    return res.status(400).json({ error: 'Item name cannot be empty.' });
+  }
+  if (body.unit_cost !== undefined) {
+    const parsed = parseAmount(body.unit_cost);
+    if (parsed === null) return res.status(400).json({ error: 'Unit cost must be a valid non-negative number.' });
+    body.unit_cost = parsed;
+  }
+  if (body.quantity !== undefined) {
+    const n = parseInt(body.quantity, 10);
+    if (!Number.isInteger(n) || n <= 0) {
+      return res.status(400).json({ error: 'Quantity must be a positive whole number.' });
+    }
+    body.quantity = n;
+  }
+  if (body.order_date !== undefined && !body.order_date) {
+    return res.status(400).json({ error: 'Purchase date cannot be cleared.' });
+  }
+  for (const dateField of ['expected_delivery_date']) {
+    if (body[dateField] !== undefined) body[dateField] = nullIfEmpty(body[dateField]);
+  }
+  if (body.po_number !== undefined) body.po_number = nullIfEmpty(body.po_number);
+  if (body.description !== undefined) body.description = nullIfEmpty(body.description);
+  if (body.courier_name !== undefined) body.courier_name = nullIfEmpty(body.courier_name);
+  if (body.tracking_number !== undefined) body.tracking_number = nullIfEmpty(body.tracking_number);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: currentRows } = await client.query(`SELECT * FROM purchases WHERE id = $1::uuid FOR UPDATE`, [id]);
+    const current = currentRows[0];
+    if (!current) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Purchase not found.' });
+    }
+
+    // Quantity can never drop below what's already been delivered — the
+    // same invariant the `delivered_quantity <= quantity` CHECK
+    // constraint enforces, checked here first so it fails with a clear
+    // 400 instead of a raw constraint-violation error.
+    if (body.quantity !== undefined && body.quantity < current.delivered_quantity) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: `Quantity can't be less than the ${current.delivered_quantity} unit(s) already delivered.`,
+      });
+    }
+
+    const setClauses = [];
+    const values = [];
+    const logEntries = [];
+    const NUMERIC_FIELDS = new Set(['unit_cost']);
+
+    for (const field of PURCHASE_TRACKED_FIELDS) {
+      if (body[field] === undefined) continue;
+      const newValue = body[field];
+      const oldValue = current[field];
+
+      // Same comparison-by-type reasoning as assetController.updateAsset:
+      // numeric columns come back from Postgres as strings, so compare
+      // numerically or an unchanged re-save false-positives as "changed".
+      const unchanged = NUMERIC_FIELDS.has(field)
+        ? Number(oldValue ?? 0) === Number(newValue ?? 0) && (oldValue == null) === (newValue == null)
+        : String(oldValue ?? '') === String(newValue ?? '');
+      if (unchanged) continue;
+
+      values.push(newValue);
+      setClauses.push(`${field} = $${values.length}`);
+      logEntries.push({ field, oldValue, newValue });
+    }
+
+    if (setClauses.length) {
+      values.push(id);
+      await client.query(
+        `UPDATE purchases SET ${setClauses.join(', ')}, updated_at = now() WHERE id = $${values.length}::uuid`,
+        values
+      );
+
+      for (const entry of logEntries) {
+        await client.query(
+          `INSERT INTO purchase_change_log (purchase_id, field_name, previous_value, new_value, changed_by)
+           VALUES ($1::uuid, $2::text, $3::text, $4::text, $5::uuid)`,
+          [id, entry.field, entry.oldValue == null ? null : String(entry.oldValue), entry.newValue == null ? null : String(entry.newValue), req.user?.id || null]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  const { rows: full } = await pool.query(`SELECT * FROM purchase_summary WHERE id = $1::uuid`, [id]);
+  res.json(full[0]);
+}
+
 /**
  * PATCH /api/purchases/:id/status
  * Manually updates order status. Routed through
@@ -861,8 +1016,19 @@ export async function getPurchaseAudit(req, res) {
      ORDER BY fal.changed_at DESC`,
     [id]
   );
+  // Field-level edits made via the admin "Edit" modal (updatePurchase) —
+  // separate from financial_audit_log above, which only ever tracks
+  // Advance Money Paid corrections.
+  const { rows: changeLog } = await pool.query(
+    `SELECT pcl.*, u.name AS changed_by_name
+     FROM purchase_change_log pcl
+     LEFT JOIN users u ON u.id = pcl.changed_by
+     WHERE pcl.purchase_id = $1::uuid
+     ORDER BY pcl.changed_at DESC`,
+    [id]
+  );
 
-  res.json({ deliveryEvents, payments, financialAuditLog });
+  res.json({ deliveryEvents, payments, financialAuditLog, changeLog });
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   exportPurchases,
   exportCompletedOrders,
   createPurchase,
+  updatePurchase,
   updatePurchaseStatus,
   updateDeliveryDate,
   recordPayment,
@@ -43,6 +44,13 @@ router.get('/completed', asyncHandler(getCompletedOrders));
 
 router.get('/', asyncHandler(listPurchases));
 router.post('/', asyncHandler(createPurchase));
+
+// General edit of a purchase's own fields (item name, vendor, quantity,
+// unit cost, dates, PO number, etc.) — admin-only, distinct from the
+// narrower single-purpose PATCHes below (status/advance-payment/
+// insurance/maintenance), each of which keeps its own endpoint and its
+// own validation/log.
+router.patch('/:id', requireAdmin, asyncHandler(updatePurchase));
 
 router.patch('/:id/status', asyncHandler(updatePurchaseStatus));
 router.patch('/:id/record-delivery', asyncHandler(recordPartialDelivery));

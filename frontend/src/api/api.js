@@ -165,6 +165,12 @@ export const api = {
 
   createPurchase: (data) => request('/purchases', { method: 'POST', body: JSON.stringify(data) }),
 
+  // Admin-only general edit — any of a purchase's own fields (item
+  // name, vendor, quantity, unit cost, dates, PO number, etc). Separate
+  // from updateStatus/updateAdvancePayment/updateInsurance below, which
+  // each keep their own narrower endpoint.
+  updatePurchase: (id, data) => request(`/purchases/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
   updateStatus: (id, status) =>
     request(`/purchases/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 

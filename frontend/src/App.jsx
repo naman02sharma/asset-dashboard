@@ -230,6 +230,19 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     return updated;
   }
 
+  // Admin-only general edit (EditPurchaseModal) — item name, vendor,
+  // quantity, unit cost, dates, PO number, etc. Refreshes vendors/
+  // locations too since editing can create a new one (same as
+  // handleCreatePurchase), and total_cost is a generated column so KPI
+  // cards can change even without touching amount_paid directly.
+  async function handleUpdatePurchase(id, form) {
+    const updated = await api.updatePurchase(id, form); // EditPurchaseModal shows its own error on throw
+    applyPurchaseUpdate(updated);
+    loadSummary();
+    loadVendorsAndLocations();
+    return updated;
+  }
+
   async function handleRecordDelivery(id, data) {
     const updated = await api.recordDelivery(id, data); // RecordDeliveryModal shows its own error on throw
     if (updated.order_status === 'delivered') {
@@ -395,12 +408,14 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
         <AssetLifecyclePage
           key={assetsNav.token}
           vendors={vendors}
+          locations={locations}
           onBack={() => setView('dashboard')}
           showToast={showToast}
           initialTab={assetsNav.tab}
           initialQuery={assetsNav.query}
           onModifyAdvancePayment={handleModifyAdvancePayment}
           onRecordDelivery={handleRecordDelivery}
+          onEditPurchase={handleUpdatePurchase}
           onSummaryChange={loadSummary}
         />
       ) : (
@@ -433,6 +448,8 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
             sort={sort}
             onSortChange={setSort}
             loading={loading}
+            vendors={vendors}
+            locations={locations}
             onStatusChange={handleStatusChange}
             onDeleteClick={setDeleteTarget}
             onInsuranceToggle={handleInsuranceToggle}
@@ -442,6 +459,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
             onModifyAdvancePayment={handleModifyAdvancePayment}
             onCompleteMaintenance={handleCompleteMaintenance}
             onRecordDelivery={handleRecordDelivery}
+            onEditPurchase={handleUpdatePurchase}
           />
         </main>
       )}
