@@ -56,22 +56,41 @@ asset-dashboard/
 
 ```bash
 createdb asset_dashboard
-psql asset_dashboard -f database/schema.sql
 psql asset_dashboard -f database/002_add_users.sql
+psql asset_dashboard -f database/schema.sql
+```
+
+**Order matters here** — `002_add_users.sql` must run BEFORE `schema.sql`,
+not after. `schema.sql` has foreign keys pointing at `users(id)`
+(`purchase_change_log`, `asset_change_log`, `password_reset_tokens`), so
+the `users` table has to exist first or `schema.sql` fails outright with
+`relation "users" does not exist`. (If you're following an older copy of
+this README that listed `schema.sql` first, that ordering was wrong —
+flip it.)
+
+Every other migration (003 through 016) is already merged into
+`schema.sql`/`002_add_users.sql` for a brand new install — running any of
+them again afterward is harmless (every statement uses `IF NOT
+EXISTS`/`CREATE OR REPLACE`), but you only strictly need to run an
+individual migration file if you're **updating an existing database**
+that predates it:
+
+```bash
 psql asset_dashboard -f database/003_add_purchase_archive.sql
 psql asset_dashboard -f database/004_vendor_details_and_insurance.sql
 psql asset_dashboard -f database/005_maintenance_files_audit.sql
 psql asset_dashboard -f database/006_inventory_assets.sql
+psql asset_dashboard -f database/007_asset_tag_and_location.sql
+psql asset_dashboard -f database/008_depreciation.sql
+psql asset_dashboard -f database/009_password_reset.sql
+psql asset_dashboard -f database/010_repair_cost.sql
 psql asset_dashboard -f database/011_user_roles.sql
+psql asset_dashboard -f database/012_po_number_and_partial_delivery.sql
 psql asset_dashboard -f database/013_user_approval.sql
 psql asset_dashboard -f database/014_purchase_change_log.sql
+psql asset_dashboard -f database/015_multi_item_purchase_orders.sql
+psql asset_dashboard -f database/016_employee_status_hr_fields.sql
 ```
-
-(All five migrations are already merged into `schema.sql` for a brand new
-install — running them again after `schema.sql` is harmless since every
-statement uses `IF NOT EXISTS`/`CREATE OR REPLACE`, but you only strictly
-need them if you're **updating an existing database** that predates a
-given migration.)
 
 **No sample data is loaded by default.** To add a few example rows:
 ```bash

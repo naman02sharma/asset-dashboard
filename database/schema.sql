@@ -109,7 +109,15 @@ CREATE TABLE purchases (
     archived_at             TIMESTAMPTZ,
 
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Multi-item purchase orders (see 015_multi_item_purchase_orders.sql):
+    -- a shared, purely cosmetic grouping tag for several rows created
+    -- together in one "New Asset Purchase" submission (e.g. a chair, a
+    -- table, and a hat bought from the same vendor at once). NULL for
+    -- every single-item purchase — nothing about how an individual row
+    -- is tracked afterward changes because of this column.
+    purchase_order_id       UUID
 );
 
 CREATE INDEX idx_purchases_archived_at ON purchases(archived_at);
@@ -121,6 +129,8 @@ CREATE INDEX idx_purchases_maintenance_date ON purchases(maintenance_date)
 -- Speeds up the Successful Order History page's default sort/filter.
 CREATE INDEX idx_purchases_delivered ON purchases(actual_delivery_date)
     WHERE order_status = 'delivered';
+CREATE INDEX idx_purchases_purchase_order ON purchases(purchase_order_id)
+    WHERE purchase_order_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------
 -- Payments: supports partial/installment payments per purchase.
@@ -286,7 +296,9 @@ SELECT
     COALESCE(files.insurance_photos, '[]'::json)  AS insurance_photos,
     COALESCE(files.invoices, '[]'::json)          AS invoices,
     p.po_number,
-    p.delivered_quantity
+    p.delivered_quantity,
+    p.created_at,
+    p.purchase_order_id
 FROM purchases p
 JOIN vendors v ON v.id = p.vendor_id
 LEFT JOIN locations l ON l.id = p.delivery_location_id

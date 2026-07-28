@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { LogOut, Settings, Archive, Boxes, Users } from 'lucide-react';
+import { LogOut, Settings, Archive, Boxes, Users, Truck, IdCard } from 'lucide-react';
 import { api, getToken, clearToken } from './api/api.js';
 import { mockPurchases } from './mock/mockData.js';
 import logo from './assets/logo.png';
 import KpiCards from './components/KpiCards.jsx';
 import VendorManagementPage from './components/VendorManagementPage.jsx';
+import EmployeeStatusPage from './components/EmployeeStatusPage.jsx';
 import FilterBar from './components/FilterBar.jsx';
 import PurchaseTable from './components/PurchaseTable.jsx';
 import AddPurchaseModal from './components/AddPurchaseModal.jsx';
@@ -49,7 +50,15 @@ export default function App() {
     <AuthProvider user={user}>
       <Dashboard
         user={user}
-        onLogout={() => { clearToken(); setUser(null); }}
+        onLogout={() => {
+          // Best-effort: records last_logout_at for the Employee Status
+          // page (see authController.logout) — fired before the token
+          // is cleared (the endpoint needs it), but never blocks
+          // logging out locally even if the request fails/times out.
+          api.logout().catch(() => {});
+          clearToken();
+          setUser(null);
+        }}
         showSettings={showSettings}
         setShowSettings={setShowSettings}
         onSettingsSaved={(updated) => setUser((u) => ({ ...u, ...updated }))}
@@ -69,7 +78,7 @@ function loadStoredViewState() {
     const raw = localStorage.getItem(VIEW_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed?.view !== 'dashboard' && parsed?.view !== 'assets' && parsed?.view !== 'vendors') return null;
+    if (!['dashboard', 'assets', 'vendors', 'employees'].includes(parsed?.view)) return null;
     return parsed;
   } catch {
     return null; // corrupt/foreign value — fall back to defaults below
@@ -161,8 +170,24 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
   useEffect(() => { if (view === 'dashboard') loadPurchases(); }, [debouncedQuery, status, sort, view]);
 
   async function handleCreatePurchase(form) {
-    const created = await api.createPurchase(form); // let AddPurchaseModal show the error if this throws
-    showToast('Purchase created.');
+    // Multi-item purchases (form.items with more than one row) go
+    // through the batch endpoint so every line item shares one
+    // purchase_order_id; a single-item purchase keeps using the
+    // original endpoint unchanged. Either way, AddPurchaseModal always
+    // gets back an object with an `id` it can attach a follow-up file
+    // upload to (for a batch, that's the FIRST line item created —
+    // insurance/invoice files uploaded at creation time attach to that
+    // one record, same as they would for a plain single-item purchase).
+    let created;
+    if (Array.isArray(form.items) && form.items.length > 1) {
+      const result = await api.createPurchaseOrder(form); // let AddPurchaseModal show the error if this throws
+      created = result.items[0];
+      showToast(`Purchase created — ${result.items.length} line items added.`);
+    } else {
+      const item = Array.isArray(form.items) ? form.items[0] : form;
+      created = await api.createPurchase({ ...form, ...item });
+      showToast('Purchase created.');
+    }
     loadPurchases();
     loadSummary();
     loadVendorsAndLocations(); // pick up any newly created vendor/location for future autocomplete
@@ -393,6 +418,22 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
               }`}>
               <Boxes size={16} />
             </button>
+            <button onClick={() => setView(view === 'vendors' ? 'dashboard' : 'vendors')}
+              title="Vendor Management"
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                view === 'vendors' ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}>
+              <Truck size={16} />
+            </button>
+            {isAdmin && (
+              <button onClick={() => setView(view === 'employees' ? 'dashboard' : 'employees')}
+                title="Employee Status"
+                className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                  view === 'employees' ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                }`}>
+                <IdCard size={16} />
+              </button>
+            )}
             <button onClick={() => setShowHistory(true)}
               title="Deleted items"
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
@@ -432,6 +473,17 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           onRecordDelivery={handleRecordDelivery}
           onEditPurchase={handleUpdatePurchase}
           onSummaryChange={loadSummary}
+        />
+      ) : view === 'vendors' ? (
+        <VendorManagementPage
+          vendors={vendors}
+          onCreateVendor={handleCreateVendor}
+          onUpdateVendor={handleUpdateVendor}
+        />
+      ) : view === 'employees' ? (
+        <EmployeeStatusPage
+          onBack={() => setView('dashboard')}
+          showToast={showToast}
         />
       ) : (
         <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">

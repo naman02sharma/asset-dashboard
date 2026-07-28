@@ -37,8 +37,24 @@ CREATE TABLE IF NOT EXISTS users (
     -- existing admin approves them via the "Manage Users" panel.
     is_approved         BOOLEAN NOT NULL DEFAULT TRUE,
 
+    -- Employee Status / HR Dashboard fields (see
+    -- 016_employee_status_hr_fields.sql for the full writeup). Kept
+    -- separate from `role` above: role governs what the account can DO
+    -- in this app (admin vs employee permissions); department/position
+    -- are plain HR labels, and manager_id is who this person reports
+    -- to for the reporting-hierarchy view — none of the three affect
+    -- permissions.
+    department          VARCHAR(100),
+    position            VARCHAR(100),
+    manager_id          UUID REFERENCES users(id) ON DELETE SET NULL
+                         CHECK (manager_id IS NULL OR manager_id <> id),
+    last_login_at       TIMESTAMPTZ,
+    last_logout_at      TIMESTAMPTZ,
+
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_manager_id ON users(manager_id) WHERE manager_id IS NOT NULL;
 
 -- Every existing purchase/status-change/payment email now goes to every
 -- user row here (see backend/services/notificationService.js) instead

@@ -426,6 +426,134 @@ export async function createPurchase(req, res) {
   res.status(201).json(fullRows[0]);
 }
 
+/**
+ * POST /api/purchases/batch
+ * Multi-item purchase: several line items (different asset names, PO
+ * numbers, quantities, unit costs) bought together from the SAME
+ * vendor in one submission — e.g. a chair, a table, and a hat on one
+ * order. Each item still becomes its own independent `purchases` row
+ * (own order_status, own partial-delivery progress, own Inventory
+ * rows via ensureAssetFromPurchase — nothing about how a single item
+ * is tracked afterward changes), but every row created here shares one
+ * `purchase_order_id` (migration 015) purely so the UI can recognize
+ * and group them as "the same order" without changing any of the
+ * per-item logic those rows already go through everywhere else.
+ *
+ * Vendor and delivery location are resolved ONCE up front (same
+ * findOrCreateVendor/findOrCreateLocation as the single-item path) and
+ * reused for every line item, since a multi-item purchase is by
+ * definition one vendor/one delivery. Delivery status ("Delivery
+ * Pending" vs "Already Delivered") is likewise one choice for the
+ * whole order, applied identically to every item — matching the New
+ * Asset Purchase form's single Delivery Status control.
+ *
+ * Body: { vendor_name, vendor_gst_number?, vendor_address?, vendor_phone?,
+ *   delivery_location_id?, location_name?, location_address?, location_gst_number?,
+ *   order_date?, expected_delivery_date?, courier_name?, tracking_number?,
+ *   is_delivered?, items: [{ item_name, po_number?, description?, quantity, unit_cost, amount_paid? }, ...] }
+ */
+export async function createPurchaseOrder(req, res) {
+  const {
+    vendor_name, vendor_gst_number, vendor_address, vendor_phone,
+    delivery_location_id, location_name, location_address, location_gst_number,
+    order_date, expected_delivery_date, courier_name, tracking_number,
+    is_delivered, items,
+  } = req.body;
+
+  if (!vendor_name || !vendor_name.trim()) {
+    return res.status(400).json({ error: 'vendor_name is required.' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'At least one line item is required.' });
+  }
+
+  // Validate every line item up front — an all-or-nothing check, so a
+  // bad row (say, item 3 of 5) never leaves items 1-2 created and 4-5
+  // rejected. Each error message references its 1-based position in
+  // the list so the frontend can point at the exact row.
+  const parsedItems = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i] || {};
+    const label = `Line item ${i + 1}`;
+    if (!item.item_name || !item.item_name.trim()) {
+      return res.status(400).json({ error: `${label}: item name is required.` });
+    }
+    const parsedQuantity = parseInt(item.quantity, 10);
+    if (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
+      return res.status(400).json({ error: `${label}: quantity must be a positive whole number.` });
+    }
+    const parsedUnitCost = parseAmount(item.unit_cost);
+    if (parsedUnitCost === null) {
+      return res.status(400).json({ error: `${label}: unit cost must be a valid non-negative number.` });
+    }
+    const parsedAmountPaid = item.amount_paid === '' || item.amount_paid == null ? 0 : parseAmount(item.amount_paid);
+    if (parsedAmountPaid === null) {
+      return res.status(400).json({ error: `${label}: amount paid must be a valid non-negative number.` });
+    }
+    parsedItems.push({
+      item_name: item.item_name.trim(),
+      po_number: item.po_number || null,
+      description: item.description || null,
+      quantity: parsedQuantity,
+      unit_cost: parsedUnitCost,
+      amount_paid: parsedAmountPaid,
+    });
+  }
+
+  const vendorId = await findOrCreateVendor(vendor_name, {
+    gst_number: vendor_gst_number, address: vendor_address, phone: vendor_phone,
+  });
+  const locationId = nullIfEmpty(delivery_location_id)
+    || (await findOrCreateLocation(location_name, { address: location_address, gst_number: location_gst_number }));
+
+  const { rows: idRows } = await pool.query(`SELECT gen_random_uuid() AS id`);
+  const purchaseOrderId = idRows[0].id;
+
+  const createdIds = [];
+  for (const item of parsedItems) {
+    const { rows } = await pool.query(
+      `INSERT INTO purchases
+        (item_name, po_number, description, vendor_id, quantity, unit_cost,
+         order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number,
+         order_status, delivered_quantity, actual_delivery_date, purchase_order_id)
+       VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date,$15::uuid)
+       RETURNING id`,
+      [item.item_name, item.po_number, item.description, vendorId, item.quantity, item.unit_cost,
+       nullIfEmpty(order_date), nullIfEmpty(expected_delivery_date), nullIfEmpty(locationId), courier_name || null, tracking_number || null,
+       is_delivered ? 'delivered' : 'ordered',
+       is_delivered ? item.quantity : 0,
+       is_delivered ? (nullIfEmpty(order_date) || todayStamp()) : null,
+       purchaseOrderId]
+    );
+    const purchaseId = rows[0].id;
+    createdIds.push(purchaseId);
+
+    if (item.amount_paid > 0) {
+      await pool.query(
+        `INSERT INTO payments (purchase_id, amount, method) VALUES ($1::uuid, $2::numeric, 'Initial payment')`,
+        [purchaseId, item.amount_paid]
+      );
+    }
+  }
+
+  const { rows: fullRows } = await pool.query(
+    `SELECT * FROM purchase_summary WHERE id = ANY($1::uuid[]) ORDER BY created_at ASC`,
+    [createdIds]
+  );
+
+  if (is_delivered) {
+    for (const purchase of fullRows) {
+      try {
+        await ensureAssetFromPurchase(purchase);
+      } catch (err) {
+        console.error('Auto-link to Inventory failed for createPurchaseOrder item', purchase.id, err);
+      }
+    }
+  }
+
+  res.status(201).json({ purchase_order_id: purchaseOrderId, items: fullRows });
+}
+
 // Fields eligible for change-log tracking on a general edit —
 // deliberately a whitelist, same reasoning as assetController's
 // TRACKED_FIELDS. Money (amount_paid) and status/insurance/maintenance

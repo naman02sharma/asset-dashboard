@@ -7,6 +7,7 @@ import {
   exportPurchases,
   exportCompletedOrders,
   createPurchase,
+  createPurchaseOrder,
   updatePurchase,
   updatePurchaseStatus,
   updateDeliveryDate,
@@ -44,6 +45,10 @@ router.get('/completed', asyncHandler(getCompletedOrders));
 
 router.get('/', asyncHandler(listPurchases));
 router.post('/', asyncHandler(createPurchase));
+// Multi-item purchase — several line items, one vendor/order, grouped
+// by a shared purchase_order_id. Registered as a fixed path (not
+// "/:id"-shaped), same reasoning as summary/spend-trend/etc. above.
+router.post('/batch', asyncHandler(createPurchaseOrder));
 
 // General edit of a purchase's own fields (item name, vendor, quantity,
 // unit cost, dates, PO number, etc.) — admin-only, distinct from the

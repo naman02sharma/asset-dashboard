@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { X, ChevronDown, ChevronRight, Camera, FileText, ShieldCheck } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Camera, FileText, ShieldCheck, Plus, Trash2 } from 'lucide-react';
 import FileDropZone from './FileDropZone.jsx';
 
 const FIELD_CLASS =
@@ -8,20 +8,36 @@ const FIELD_CLASS =
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
+function blankItem() {
+  return { item_name: '', po_number: '', description: '', quantity: 1, unit_cost: '', amount_paid: '' };
+}
+
 /**
  * "New Purchase" form.
  *  - Vendor AND delivery location are both free text with autocomplete
  *    suggestions (via <datalist>) — the backend looks up a match by
  *    name or creates a new record, so nothing has to be pre-registered.
- *  - "Amount already paid" is optional; total cost and the remaining
- *    balance are calculated live as you type.
+ *  - Supports MULTIPLE line items under one purchase transaction from
+ *    the same vendor (e.g. a chair, a table, and a hat in one order) —
+ *    each row has its own Asset Name, PO Number, Quantity, and
+ *    Amount/Cost. Vendor, delivery location, dates, and delivery
+ *    status are shared across every line item since they describe the
+ *    ORDER, not any one item. With exactly one row, submission behaves
+ *    identically to the original single-item flow (POST /purchases);
+ *    with more than one, it goes through POST /purchases/batch so the
+ *    rows are grouped by a shared purchase_order_id — see
+ *    App.jsx's handleCreatePurchase.
+ *  - "Amount already paid" is per line item; total cost and the
+ *    remaining balance are calculated live, summed across every item.
  *  - Insurance photos/invoices are OPTIONAL at creation time and,
  *    deliberately, uploaded as a SEPARATE follow-up call (onUploadFiles)
  *    AFTER the purchase itself is created (onSubmit) — never bundled
  *    into one request. This means a failed/rejected file (wrong type,
  *    over 10MB) can never block the purchase from being saved; the
  *    purchase creation success and the file upload outcome are
- *    reported to the user independently.
+ *    reported to the user independently. For a multi-item order, files
+ *    attach to the FIRST line item's record (there's no single
+ *    natural "whole order" row to attach them to instead).
  *  - Invoices and insurance are separate entities: the invoice
  *    uploader is ALWAYS visible and usable regardless of whether
  *    "This asset is insured" is checked. Only the insurance PHOTOS
@@ -29,16 +45,10 @@ const currency = (n) =>
  */
 export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit, onUploadFiles }) {
   const [form, setForm] = useState({
-    item_name: '',
-    po_number: '',
-    description: '',
     vendor_name: '',
     vendor_gst_number: '',
     vendor_address: '',
     vendor_phone: '',
-    quantity: 1,
-    unit_cost: '',
-    amount_paid: '',
     order_date: new Date().toISOString().slice(0, 10),
     expected_delivery_date: '',
     location_name: '',
@@ -46,6 +56,18 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
     location_gst_number: '',
     is_delivered: false,
   });
+  const [items, setItems] = useState([blankItem()]);
+
+  function updateItem(index, field, value) {
+    setItems((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  }
+  function addItem() {
+    setItems((rows) => [...rows, blankItem()]);
+  }
+  function removeItem(index) {
+    setItems((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
+  }
+
   const [showVendorDetails, setShowVendorDetails] = useState(false);
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [insured, setInsured] = useState(false);
@@ -110,10 +132,14 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
   }
 
   const totalCost = useMemo(
-    () => (Number(form.quantity) || 0) * (Number(form.unit_cost) || 0),
-    [form.quantity, form.unit_cost]
+    () => items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_cost) || 0), 0),
+    [items]
   );
-  const remaining = Math.max(0, totalCost - (Number(form.amount_paid) || 0));
+  const totalPaid = useMemo(
+    () => items.reduce((sum, it) => sum + (Number(it.amount_paid) || 0), 0),
+    [items]
+  );
+  const remaining = Math.max(0, totalCost - totalPaid);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -125,11 +151,18 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
       return;
     }
 
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i].item_name.trim()) {
+        setError(`Line item ${i + 1}: item name is required.`);
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     let created;
     try {
-      created = await onSubmit(form); // throws + stays open on failure — nothing uploaded yet
+      created = await onSubmit({ ...form, items }); // throws + stays open on failure — nothing uploaded yet
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
@@ -156,7 +189,7 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-[fadeIn_0.15s_ease-out]">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl animate-[scaleIn_0.15s_ease-out]">
+      <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl bg-white shadow-xl animate-[scaleIn_0.15s_ease-out]">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-slate-900">New Asset Purchase</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -165,26 +198,74 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
         </div>
 
         <form id="new-purchase-form" onSubmit={handleSubmit} className="flex-1 space-y-3 overflow-y-auto px-6 py-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Item name</label>
-              <input required className={FIELD_CLASS} value={form.item_name}
-                onChange={(e) => update('item_name', e.target.value)} placeholder="e.g. Dell Latitude 5440" />
+          {/* --- Line items: one or more assets bought together in this
+              same order. A single row behaves exactly like the original
+              single-item form; adding rows switches submission to the
+              multi-item batch endpoint (see handleSubmit / App.jsx). --- */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-slate-500">
+                {items.length > 1 ? `Line items (${items.length})` : 'Item details'}
+              </label>
+              <button type="button" onClick={addItem}
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+                <Plus size={13} /> Add another item
+              </button>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">PO number</label>
-              <input className={FIELD_CLASS} value={form.po_number}
-                onChange={(e) => update('po_number', e.target.value)} placeholder="Optional" />
-            </div>
+
+            {items.map((item, index) => (
+              <div key={index} className="rounded-lg border border-slate-200 p-3">
+                {items.length > 1 && (
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500">Item {index + 1}</span>
+                    <button type="button" onClick={() => removeItem(index)}
+                      className="flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700">
+                      <Trash2 size={12} /> Remove
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">Item name</label>
+                    <input required className={FIELD_CLASS} value={item.item_name}
+                      onChange={(e) => updateItem(index, 'item_name', e.target.value)} placeholder="e.g. Dell Latitude 5440" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">PO number</label>
+                    <input className={FIELD_CLASS} value={item.po_number}
+                      onChange={(e) => updateItem(index, 'po_number', e.target.value)} placeholder="Optional" />
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <label className="mb-1 block text-xs font-medium text-slate-500">Description</label>
+                  <input className={FIELD_CLASS} value={item.description}
+                    onChange={(e) => updateItem(index, 'description', e.target.value)} placeholder="Optional" />
+                </div>
+
+                <div className="mt-2 grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">Quantity</label>
+                    <input required type="number" min="1" className={FIELD_CLASS} value={item.quantity}
+                      onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">Unit cost (₹)</label>
+                    <input required type="number" min="0" step="0.01" className={FIELD_CLASS} value={item.unit_cost}
+                      onChange={(e) => updateItem(index, 'unit_cost', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">Paid (₹)</label>
+                    <input type="number" min="0" step="0.01" className={FIELD_CLASS} value={item.amount_paid}
+                      onChange={(e) => updateItem(index, 'amount_paid', e.target.value)} placeholder="0" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Description</label>
-            <input className={FIELD_CLASS} value={form.description}
-              onChange={(e) => update('description', e.target.value)} placeholder="Optional" />
-          </div>
-
-          {/* --- Vendor --- */}
+          {/* --- Vendor (shared across every line item — one order, one vendor) --- */}
           <div className="rounded-lg border border-slate-200 p-3">
             <label className="mb-1 block text-xs font-medium text-slate-500">Vendor</label>
             <input
@@ -272,30 +353,16 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Quantity</label>
-              <input required type="number" min="1" className={FIELD_CLASS} value={form.quantity}
-                onChange={(e) => update('quantity', Number(e.target.value))} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Unit cost (₹)</label>
-              <input required type="number" min="0" step="0.01" className={FIELD_CLASS} value={form.unit_cost}
-                onChange={(e) => update('unit_cost', e.target.value)} />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Amount already paid (₹)</label>
-            <input type="number" min="0" step="0.01" max={totalCost || undefined} className={FIELD_CLASS}
-              value={form.amount_paid} onChange={(e) => update('amount_paid', e.target.value)} placeholder="0" />
-          </div>
-
-          {/* Live calculation — updates as quantity / unit cost / amount paid change */}
+          {/* Live calculation — updates as any line item's quantity / unit
+              cost / amount paid changes, summed across all items */}
           <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
             <div className="flex justify-between text-slate-500">
-              <span>Total cost</span>
+              <span>Total cost{items.length > 1 ? ` (${items.length} items)` : ''}</span>
               <span className="font-mono tabular-nums text-slate-800">{currency(totalCost)}</span>
+            </div>
+            <div className="mt-1 flex justify-between text-slate-500">
+              <span>Total paid so far</span>
+              <span className="font-mono tabular-nums text-slate-800">{currency(totalPaid)}</span>
             </div>
             <div className="mt-1 flex justify-between text-slate-500">
               <span>Remaining balance</span>
