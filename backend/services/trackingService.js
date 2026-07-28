@@ -100,13 +100,12 @@ export async function applyStatusUpdate(purchaseId, newStatus, source = 'courier
   );
   const updatedPurchase = updatedRows[0];
 
-  // Trigger: "An email must be sent whenever an order status updates"
-  await sendPurchaseAlert('status_update', updatedPurchase, { previousStatus });
-
   // Auto-link into Inventory Management the moment this purchase is
-  // actually delivered — see assetController.ensureAssetFromPurchase
-  // for why this is safe to call unconditionally (idempotent, and
-  // never touches the purchase-side flow above even if it fails).
+  // actually delivered — runs BEFORE the email notification so a slow
+  // or unreachable mail server can never delay inventory sync. See
+  // assetController.ensureAssetFromPurchase for why this is safe to
+  // call unconditionally (idempotent, and never touches the
+  // purchase-side flow above even if it fails).
   if (newStatus === 'delivered' && previousStatus !== 'delivered') {
     try {
       await ensureAssetFromPurchase(updatedPurchase);
@@ -114,6 +113,12 @@ export async function applyStatusUpdate(purchaseId, newStatus, source = 'courier
       console.error('Auto-link to Inventory failed for purchase', purchaseId, err);
     }
   }
+
+  // Trigger: "An email must be sent whenever an order status updates"
+  // Fire-and-forget: don't let a slow/unreachable SMTP server block
+  // the response or delay anything downstream.
+  sendPurchaseAlert('status_update', updatedPurchase, { previousStatus })
+    .catch((err) => console.error('Failed to send status_update email', err));
 
   return updatedPurchase;
 }
