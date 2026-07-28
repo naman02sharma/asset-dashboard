@@ -401,6 +401,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           initialQuery={assetsNav.query}
           onModifyAdvancePayment={handleModifyAdvancePayment}
           onRecordDelivery={handleRecordDelivery}
+          onSummaryChange={loadSummary}
         />
       ) : (
         <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">

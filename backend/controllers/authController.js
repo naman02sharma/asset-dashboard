@@ -268,6 +268,34 @@ export async function updateUserApproval(req, res) {
 }
 
 /**
+ * DELETE /api/auth/users/:id — admin-only. "Reject" in the Manage
+ * Users panel — removes a signup that's still pending approval.
+ * Deliberately scoped to unapproved accounts only: this isn't a
+ * general "remove a teammate" tool (that has bigger implications —
+ * their audit-log attribution, anything assigned to them, etc. — and
+ * wasn't asked for), just a way to clear out a signup an admin has
+ * decided not to let in. An already-approved account can only be
+ * disabled via updateUserApproval (revoke), never deleted outright,
+ * which also means this can never accidentally remove the last admin
+ * — an admin is by definition already approved.
+ * Same auto-cleanup a stale pending signup gets from the daily cron
+ * (see trackingService.purgeStaleUnapprovedUsers) — this is just the
+ * immediate, manual version of that.
+ */
+export async function deleteUser(req, res) {
+  const { id } = req.params;
+
+  const { rows } = await pool.query(`SELECT is_approved FROM users WHERE id = $1::uuid`, [id]);
+  if (!rows.length) return res.status(404).json({ error: 'User not found.' });
+  if (rows[0].is_approved) {
+    return res.status(400).json({ error: "Can't delete an approved account — revoke their access instead." });
+  }
+
+  await pool.query(`DELETE FROM users WHERE id = $1::uuid`, [id]);
+  res.json({ id, deleted: true });
+}
+
+/**
  * PATCH /api/auth/users/:id/role — admin-only — { role: 'admin'|'employee' }
  * Refuses to demote the LAST remaining admin — otherwise a single
  * mis-click could lock every admin-only action in the app with no one

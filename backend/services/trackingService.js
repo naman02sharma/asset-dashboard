@@ -218,6 +218,29 @@ export async function purgeOldHistory() {
 }
 
 /**
+ * Auto-rejects signups nobody ever approved. Without this, a pending
+ * account sits in the "Pending approval" panel forever with no way to
+ * clear it except an admin manually clicking Reject (see
+ * authController.deleteUser) — fine for a handful of signups, but on
+ * a public-facing deployment abandoned/spam signups would otherwise
+ * accumulate indefinitely. An already-approved account is never
+ * touched here, regardless of age — this only ever looks at
+ * is_approved = false rows, same scoping as the manual Reject action.
+ * Threshold is configurable since "how long is too long to wait for
+ * an admin" varies by team — defaults to 14 days.
+ */
+export async function purgeStaleUnapprovedUsers() {
+  const days = Number(process.env.PENDING_USER_EXPIRY_DAYS) || 14;
+  const { rowCount } = await pool.query(
+    `DELETE FROM users WHERE is_approved = false AND created_at < now() - ($1 || ' days')::interval`,
+    [days]
+  );
+  if (rowCount > 0) {
+    console.log(`[cron] Auto-rejected ${rowCount} signup(s) pending approval for more than ${days} day(s).`);
+  }
+}
+
+/**
  * AMC renewal alert (Inventory module): surfaces any asset whose AMC
  * ends within 30 days by emailing/texting the team. Mirrors
  * checkMaintenanceAlerts() above — the asset itself doesn't move
@@ -251,5 +274,6 @@ export function scheduleAutomationJobs() {
     await checkMaintenanceAlerts();
     await checkAmcRenewalAlerts();
     await purgeOldHistory();
+    await purgeStaleUnapprovedUsers();
   });
 }

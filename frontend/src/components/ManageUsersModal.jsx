@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, ShieldCheck, User, Loader2, UserCheck, Clock, UserX } from 'lucide-react';
+import { X, ShieldCheck, User, Loader2, UserCheck, Clock, UserX, Trash2 } from 'lucide-react';
 import { api } from '../api/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 /**
- * Admin-only — lists every account. Two things an admin can do here:
+ * Admin-only — lists every account. Three things an admin can do here:
  *   - Approve/revoke access (is_approved) — a brand-new signup can't
  *     log in at all until approved (see 013_user_approval.sql /
- *     authController.login). Pending accounts are listed first.
+ *     authController.login). Pending accounts are listed first, each
+ *     showing how long they've been waiting.
+ *   - Reject a still-pending signup outright (deleteUser) — distinct
+ *     from Revoke, which only applies to an already-approved account.
+ *     A pending signup left untouched is also auto-rejected by the
+ *     daily cron after PENDING_USER_EXPIRY_DAYS (see
+ *     trackingService.purgeStaleUnapprovedUsers) — this button is the
+ *     immediate, manual version of that same cleanup.
  *   - Promote/demote role ('admin' <-> 'employee') for already-
  *     approved accounts. The backend refuses to demote the last
  *     remaining admin (updateUserRole) or revoke your own access
@@ -19,6 +26,7 @@ export default function ManageUsersModal({ onClose, showToast }) {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
+  const [confirmingRejectId, setConfirmingRejectId] = useState(null);
 
   useEffect(() => {
     api.listUsers().then(setUsers).catch((err) => setError(err.message));
@@ -65,6 +73,38 @@ export default function ManageUsersModal({ onClose, showToast }) {
     }
   }
 
+  // Click-to-confirm — same pattern used for other permanent-delete
+  // actions elsewhere in the app (e.g. the Order History delete
+  // button), rather than a browser confirm() dialog. A second click
+  // within 3s actually rejects; otherwise it quietly resets.
+  function handleRejectClick(u) {
+    if (confirmingRejectId !== u.id) {
+      setConfirmingRejectId(u.id);
+      setTimeout(() => setConfirmingRejectId((current) => (current === u.id ? null : current)), 3000);
+      return;
+    }
+    handleReject(u);
+  }
+
+  async function handleReject(u) {
+    setConfirmingRejectId(null);
+    setUpdatingId(u.id);
+    try {
+      await api.deleteUser(u.id);
+      setUsers((rows) => rows.filter((r) => r.id !== u.id));
+      showToast(`${u.name}'s signup was rejected.`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  function daysPending(createdAt) {
+    const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    return days <= 0 ? 'today' : days === 1 ? '1 day' : `${days} days`;
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-[fadeIn_0.15s_ease-out]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -102,17 +142,29 @@ export default function ManageUsersModal({ onClose, showToast }) {
                           </span>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-slate-700">{u.name}</p>
-                            <p className="truncate text-xs text-slate-400">{u.email}</p>
+                            <p className="truncate text-xs text-slate-400">{u.email} · waiting {daysPending(u.created_at)}</p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleSetApproval(u, true)}
-                          disabled={updatingId === u.id}
-                          title="Approve — lets this account log in"
-                          className="flex shrink-0 items-center gap-1 rounded-full bg-green-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
-                        >
-                          {updatingId === u.id ? <Loader2 size={11} className="animate-spin" /> : <UserCheck size={12} />} Approve
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            onClick={() => handleSetApproval(u, true)}
+                            disabled={updatingId === u.id}
+                            title="Approve — lets this account log in"
+                            className="flex items-center gap-1 rounded-full bg-green-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {updatingId === u.id ? <Loader2 size={11} className="animate-spin" /> : <UserCheck size={12} />} Approve
+                          </button>
+                          <button
+                            onClick={() => handleRejectClick(u)}
+                            disabled={updatingId === u.id}
+                            title={confirmingRejectId === u.id ? 'Click again to confirm — this cannot be undone' : 'Reject — permanently removes this signup'}
+                            className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors disabled:opacity-50 ${
+                              confirmingRejectId === u.id ? 'bg-red-600 text-white hover:bg-red-700' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+                            }`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

@@ -130,6 +130,7 @@ export const api = {
   listUsers: () => request('/auth/users'),
   updateUserRole: (id, role) => request(`/auth/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   updateUserApproval: (id, is_approved) => request(`/auth/users/${id}/approval`, { method: 'PATCH', body: JSON.stringify({ is_approved }) }),
+  deleteUser: (id) => request(`/auth/users/${id}`, { method: 'DELETE' }),
   getMe: () => request('/auth/me'),
   updateNotificationSettings: (data) =>
     request('/auth/notification-settings', { method: 'PATCH', body: JSON.stringify(data) }),

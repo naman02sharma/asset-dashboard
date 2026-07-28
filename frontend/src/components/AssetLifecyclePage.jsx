@@ -16,7 +16,7 @@ import InventoryPage from './InventoryPage.jsx';
  * assetController.ensureAssetFromPurchase) — so nothing has to be
  * re-entered by hand once an order actually lands.
  */
-export default function AssetLifecyclePage({ vendors, onBack, showToast, initialTab = 'history', initialQuery = '', onModifyAdvancePayment, onRecordDelivery }) {
+export default function AssetLifecyclePage({ vendors, onBack, showToast, initialTab = 'history', initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onSummaryChange }) {
   const [tab, setTab] = useState(initialTab); // 'history' | 'inventory'
 
   return (
@@ -44,7 +44,7 @@ export default function AssetLifecyclePage({ vendors, onBack, showToast, initial
 
       {tab === 'history' ? (
         <CompletedOrdersPage vendors={vendors} showToast={showToast} embedded initialQuery={initialQuery}
-          onModifyAdvancePayment={onModifyAdvancePayment} onRecordDelivery={onRecordDelivery} />
+          onModifyAdvancePayment={onModifyAdvancePayment} onRecordDelivery={onRecordDelivery} onSummaryChange={onSummaryChange} />
       ) : (
         <InventoryPage vendors={vendors} showToast={showToast} embedded initialQuery={initialQuery} />
       )}

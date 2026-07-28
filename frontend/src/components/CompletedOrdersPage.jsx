@@ -22,7 +22,7 @@ const PAGE_SIZE = 20;
  * server-side so this stays fast even with hundreds of rows and
  * attached images — nothing beyond the current page is ever fetched.
  */
-export default function CompletedOrdersPage({ vendors, onBack, showToast, embedded = false, initialQuery = '', onModifyAdvancePayment, onRecordDelivery }) {
+export default function CompletedOrdersPage({ vendors, onBack, showToast, embedded = false, initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onSummaryChange }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -106,6 +106,16 @@ export default function CompletedOrdersPage({ vendors, onBack, showToast, embedd
       setRows((r) => r.filter((row) => row.id !== id));
       setTotal((t) => t - 1);
       showToast('Purchase permanently deleted.');
+      // This purchase (and, per purchaseController.deletePurchase, every
+      // Inventory asset it created) is gone — the Home Dashboard's KPI
+      // cards (total spend, pending-deliveries amount, etc.) were computed
+      // including it, so they need refreshing too, not just this page's
+      // own row list. Same reasoning applies to scheduling/editing
+      // maintenance in ExpandedDetails below — both call this. Optional
+      // because this page can also be used standalone in tests/
+      // storybook-style contexts without App.jsx's wiring — harmless to
+      // skip there.
+      onSummaryChange?.();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -196,6 +206,7 @@ export default function CompletedOrdersPage({ vendors, onBack, showToast, embedd
             onUploadInvoices={handleUploadInvoices}
             onInsuranceToggle={handleInsuranceToggle}
             onDeleteFile={handleDeleteFile}
+            onSummaryChange={onSummaryChange}
           />
         ))}
       </div>
@@ -218,7 +229,7 @@ export default function CompletedOrdersPage({ vendors, onBack, showToast, embedd
   );
 }
 
-function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, onDelete, showToast, onModifyAdvancePayment, onRecordDelivery, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile }) {
+function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, onDelete, showToast, onModifyAdvancePayment, onRecordDelivery, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile, onSummaryChange }) {
   const { isAdmin } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -312,7 +323,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
         <div className="border-t border-slate-100 px-4 py-3">
           <ExpandedDetails purchase={p} onUpdated={onUpdated} showToast={showToast}
             onUploadPhotos={onUploadPhotos} onUploadInvoices={onUploadInvoices}
-            onInsuranceToggle={onInsuranceToggle} onDeleteFile={onDeleteFile} />
+            onInsuranceToggle={onInsuranceToggle} onDeleteFile={onDeleteFile} onSummaryChange={onSummaryChange} />
         </div>
       )}
 
@@ -327,7 +338,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
   );
 }
 
-function ExpandedDetails({ purchase: p, onUpdated, showToast, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile }) {
+function ExpandedDetails({ purchase: p, onUpdated, showToast, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile, onSummaryChange }) {
   const [maintDate, setMaintDate] = useState(p.maintenance_date || '');
   const [maintCost, setMaintCost] = useState(p.maintenance_cost ?? '');
   const [recurring, setRecurring] = useState(!!p.maintenance_recurring);
@@ -344,6 +355,11 @@ function ExpandedDetails({ purchase: p, onUpdated, showToast, onUploadPhotos, on
         maintenance_cost: maintCost === '' ? null : maintCost,
       });
       onUpdated(updated);
+      // Scheduling/editing this changes upcoming_maintenance_cost —
+      // the Home Dashboard's "Upcoming Maintenance Cost" KPI card was
+      // computed before this save, so it needs refreshing too. Same
+      // reasoning as onSummaryChange in handleDelete above.
+      onSummaryChange?.();
       showToast('Maintenance schedule saved.');
     } catch (err) {
       showToast(err.message, 'error');

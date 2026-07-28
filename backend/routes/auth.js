@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getCurrentUser, updateNotificationSettings, forgotPassword, resetPassword, listUsers, updateUserRole, updateUserApproval } from '../controllers/authController.js';
+import { register, login, getCurrentUser, updateNotificationSettings, forgotPassword, resetPassword, listUsers, updateUserRole, updateUserApproval, deleteUser } from '../controllers/authController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
@@ -14,5 +14,6 @@ router.patch('/notification-settings', authenticateToken, asyncHandler(updateNot
 router.get('/users', authenticateToken, requireAdmin, asyncHandler(listUsers));
 router.patch('/users/:id/role', authenticateToken, requireAdmin, asyncHandler(updateUserRole));
 router.patch('/users/:id/approval', authenticateToken, requireAdmin, asyncHandler(updateUserApproval));
+router.delete('/users/:id', authenticateToken, requireAdmin, asyncHandler(deleteUser));
 
 export default router;
