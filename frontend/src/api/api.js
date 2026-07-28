@@ -241,6 +241,8 @@ export const api = {
   importAssets: (csvText) => request('/assets/import', { method: 'POST', body: JSON.stringify({ csv: csvText }) }),
 
   getVendors: () => request('/vendors'),
+  createVendor: (data) => request('/vendors', { method: 'POST', body: JSON.stringify(data) }),
+  updateVendor: (id, data) => request(`/vendors/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getLocations: () => request('/locations'),
 
   // --- Inventory & Asset Assignment module ---

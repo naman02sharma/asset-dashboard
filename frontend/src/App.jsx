@@ -4,6 +4,7 @@ import { api, getToken, clearToken } from './api/api.js';
 import { mockPurchases } from './mock/mockData.js';
 import logo from './assets/logo.png';
 import KpiCards from './components/KpiCards.jsx';
+import VendorManagementPage from './components/VendorManagementPage.jsx';
 import FilterBar from './components/FilterBar.jsx';
 import PurchaseTable from './components/PurchaseTable.jsx';
 import AddPurchaseModal from './components/AddPurchaseModal.jsx';
@@ -68,7 +69,7 @@ function loadStoredViewState() {
     const raw = localStorage.getItem(VIEW_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed?.view !== 'dashboard' && parsed?.view !== 'assets') return null;
+    if (parsed?.view !== 'dashboard' && parsed?.view !== 'assets' && parsed?.view !== 'vendors') return null;
     return parsed;
   } catch {
     return null; // corrupt/foreign value — fall back to defaults below
@@ -239,6 +240,20 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     const updated = await api.updatePurchase(id, form); // EditPurchaseModal shows its own error on throw
     applyPurchaseUpdate(updated);
     loadSummary();
+    loadVendorsAndLocations();
+    return updated;
+  }
+
+  async function handleCreateVendor(form) {
+    const created = await api.createVendor(form);
+    showToast('Vendor created.');
+    loadVendorsAndLocations();
+    return created;
+  }
+
+  async function handleUpdateVendor(id, form) {
+    const updated = await api.updateVendor(id, form);
+    showToast('Vendor updated.');
     loadVendorsAndLocations();
     return updated;
   }
