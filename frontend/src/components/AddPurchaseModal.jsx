@@ -44,6 +44,7 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
     location_name: '',
     location_address: '',
     location_gst_number: '',
+    is_delivered: false,
   });
   const [showVendorDetails, setShowVendorDetails] = useState(false);
   const [showLocationDetails, setShowLocationDetails] = useState(false);
@@ -231,6 +232,20 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
               <label className="mb-1 block text-xs font-medium text-slate-500">Expected delivery date</label>
               <input type="date" className={FIELD_CLASS} value={form.expected_delivery_date}
                 onChange={(e) => update('expected_delivery_date', e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Delivery Status</label>
+            <div className="mt-1 flex items-center gap-4">
+              <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input type="radio" name="delivery_status" checked={!form.is_delivered} onChange={() => update('is_delivered', false)} className="text-brand-600 focus:ring-brand-500" />
+                Delivery Pending
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input type="radio" name="delivery_status" checked={form.is_delivered} onChange={() => update('is_delivered', true)} className="text-brand-600 focus:ring-brand-500" />
+                Already Delivered
+              </label>
             </div>
           </div>
 

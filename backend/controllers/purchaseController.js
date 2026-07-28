@@ -369,6 +369,7 @@ export async function createPurchase(req, res) {
     expected_delivery_date, delivery_location_id,
     location_name, location_address, location_gst_number,
     courier_name, tracking_number,
+    is_delivered,
   } = req.body;
 
   if (!item_name || !vendor_name || !quantity || unit_cost == null) {
@@ -393,11 +394,14 @@ export async function createPurchase(req, res) {
   const { rows } = await pool.query(
     `INSERT INTO purchases
       (item_name, po_number, description, vendor_id, quantity, unit_cost,
-       order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number)
-     VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text)
+       order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number, order_status, delivered_quantity, actual_delivery_date)
+     VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date)
      RETURNING id`,
     [item_name, po_number || null, description || null, vendorId, parsedQuantity, parsedUnitCost,
-     nullIfEmpty(order_date), nullIfEmpty(expected_delivery_date), nullIfEmpty(locationId), courier_name || null, tracking_number || null]
+     nullIfEmpty(order_date), nullIfEmpty(expected_delivery_date), nullIfEmpty(locationId), courier_name || null, tracking_number || null,
+     is_delivered ? 'delivered' : 'ordered',
+     is_delivered ? parsedQuantity : 0,
+     is_delivered ? (nullIfEmpty(order_date) || todayStamp()) : null]
   );
   const purchaseId = rows[0].id;
 
@@ -410,6 +414,15 @@ export async function createPurchase(req, res) {
   }
 
   const { rows: fullRows } = await pool.query(`SELECT * FROM purchase_summary WHERE id = $1::uuid`, [purchaseId]);
+
+  if (is_delivered) {
+    try {
+      await ensureAssetFromPurchase(fullRows[0]);
+    } catch (err) {
+      console.error('Auto-link to Inventory failed for createPurchase', purchaseId, err);
+    }
+  }
+
   res.status(201).json(fullRows[0]);
 }
 

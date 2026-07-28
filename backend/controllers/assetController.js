@@ -45,12 +45,54 @@ function parseAmount(value) {
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : undefined; // undefined = invalid
 }
 
-async function findOrCreateVendor(name) {
+async function findOrCreateVendor(name, { gst_number, address, phone } = {}) {
   if (!name || !name.trim()) return null;
   const trimmed = name.trim();
   const existing = await pool.query(`SELECT id FROM vendors WHERE LOWER(name) = LOWER($1::text)`, [trimmed]);
-  if (existing.rows.length) return existing.rows[0].id;
-  const created = await pool.query(`INSERT INTO vendors (name) VALUES ($1::text) RETURNING id`, [trimmed]);
+
+  if (existing.rows.length) {
+    const id = existing.rows[0].id;
+    if (gst_number || address || phone) {
+      await pool.query(
+        `UPDATE vendors SET
+           gst_number = COALESCE(vendors.gst_number, $1::text),
+           address = COALESCE(vendors.address, $2::text),
+           contact_phone = COALESCE(vendors.contact_phone, $3::text)
+         WHERE id = $4::uuid`,
+        [gst_number || null, address || null, phone || null, id]
+      );
+    }
+    return id;
+  }
+  const created = await pool.query(
+    `INSERT INTO vendors (name, gst_number, address, contact_phone) VALUES ($1::text, $2::text, $3::text, $4::text) RETURNING id`,
+    [trimmed, gst_number || null, address || null, phone || null]
+  );
+  return created.rows[0].id;
+}
+
+async function findOrCreateLocation(name, { address, gst_number } = {}) {
+  if (!name || !name.trim()) return null;
+  const trimmed = name.trim();
+  const existing = await pool.query(`SELECT id FROM locations WHERE LOWER(name) = LOWER($1::text)`, [trimmed]);
+
+  if (existing.rows.length) {
+    const id = existing.rows[0].id;
+    if (address || gst_number) {
+      await pool.query(
+        `UPDATE locations SET
+           address = COALESCE(locations.address, $1::text),
+           gst_number = COALESCE(locations.gst_number, $2::text)
+         WHERE id = $3::uuid`,
+        [address || null, gst_number || null, id]
+      );
+    }
+    return id;
+  }
+  const created = await pool.query(
+    `INSERT INTO locations (name, address, gst_number) VALUES ($1::text, $2::text, $3::text) RETURNING id`,
+    [trimmed, address || null, gst_number || null]
+  );
   return created.rows[0].id;
 }
 
@@ -390,7 +432,7 @@ export async function getAssetQrCode(req, res) {
  */
 export async function createAsset(req, res) {
   const {
-    asset_name, category, serial_number, asset_tag, location, vendor_name,
+    asset_name, category, serial_number, asset_tag, location_name, location_address, location_gst_number, vendor_name, vendor_gst_number, vendor_address, vendor_phone,
     purchase_date, cost, warranty_expiry, useful_life_years,
     amc_provider, amc_start_date, amc_end_date, amc_cost,
   } = req.body;
@@ -420,17 +462,18 @@ export async function createAsset(req, res) {
     return res.status(400).json({ error: 'AMC End Date cannot be earlier than AMC Start Date.' });
   }
 
-  const vendorId = vendor_name ? await findOrCreateVendor(vendor_name) : null;
+  const vendorId = vendor_name ? await findOrCreateVendor(vendor_name, { gst_number: vendor_gst_number, address: vendor_address, phone: vendor_phone }) : null;
+  const locationId = location_name ? await findOrCreateLocation(location_name, { address: location_address, gst_number: location_gst_number }) : null;
 
   let rows;
   try {
     ({ rows } = await pool.query(
       `INSERT INTO assets
-        (asset_name, category, serial_number, asset_tag, location, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
+        (asset_name, category, serial_number, asset_tag, location, location_id, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
          amc_provider, amc_start_date, amc_end_date, amc_cost)
-       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::uuid,$7::date,$8::numeric,$9::date,$10::int,$11::text,$12::date,$13::date,$14::numeric)
+       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::uuid,$7::uuid,$8::date,$9::numeric,$10::date,$11::int,$12::text,$13::date,$14::date,$15::numeric)
        RETURNING id`,
-      [asset_name.trim(), category || null, serial_number || null, nullIfEmpty(asset_tag), location || null, vendorId,
+      [asset_name.trim(), category || null, serial_number || null, nullIfEmpty(asset_tag), location_name || null, locationId, vendorId,
        nullIfEmpty(purchase_date), parsedCost, nullIfEmpty(warranty_expiry), parsedUsefulLife,
        amc_provider || null, nullIfEmpty(amc_start_date), nullIfEmpty(amc_end_date), parsedAmcCost]
     ));
@@ -449,7 +492,7 @@ export async function createAsset(req, res) {
 // whitelist (not "every column") so internal bookkeeping fields like
 // updated_at never spam the timeline.
 const TRACKED_FIELDS = [
-  'asset_name', 'category', 'serial_number', 'asset_tag', 'location', 'vendor_id', 'purchase_date', 'cost', 'warranty_expiry',
+  'asset_name', 'category', 'serial_number', 'asset_tag', 'location', 'location_id', 'vendor_id', 'purchase_date', 'cost', 'warranty_expiry',
   'useful_life_years', 'amc_provider', 'amc_start_date', 'amc_end_date', 'amc_cost',
 ];
 
@@ -465,9 +508,20 @@ export async function updateAsset(req, res) {
   const body = { ...req.body };
 
   if (body.vendor_name !== undefined) {
-    body.vendor_id = body.vendor_name ? await findOrCreateVendor(body.vendor_name) : null;
+    body.vendor_id = body.vendor_name ? await findOrCreateVendor(body.vendor_name, { gst_number: body.vendor_gst_number, address: body.vendor_address, phone: body.vendor_phone }) : null;
     delete body.vendor_name;
   }
+  delete body.vendor_gst_number;
+  delete body.vendor_address;
+  delete body.vendor_phone;
+
+  if (body.location_name !== undefined) {
+    body.location_id = body.location_name ? await findOrCreateLocation(body.location_name, { address: body.location_address, gst_number: body.location_gst_number }) : null;
+    body.location = body.location_name;
+    delete body.location_name;
+  }
+  delete body.location_address;
+  delete body.location_gst_number;
 
   if (body.cost !== undefined) {
     const parsed = parseAmount(body.cost);

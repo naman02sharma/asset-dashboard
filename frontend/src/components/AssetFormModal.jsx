@@ -16,8 +16,13 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, onClos
     category: asset?.category || '',
     serial_number: asset?.serial_number || '',
     asset_tag: asset?.asset_tag || '',
-    location: asset?.location || '',
+    location_name: asset?.location_name || asset?.location || '',
+    location_address: asset?.location_address || '',
+    location_gst_number: asset?.location_gst_number || '',
     vendor_name: asset?.vendor_name || '',
+    vendor_gst_number: asset?.vendor_gst_number || '',
+    vendor_address: asset?.vendor_address || '',
+    vendor_phone: asset?.vendor_phone || '',
     purchase_date: asset?.purchase_date || '',
     cost: asset?.cost ?? '',
     warranty_expiry: asset?.warranty_expiry || '',
@@ -28,6 +33,8 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, onClos
     amc_cost: asset?.amc_cost ?? '',
   });
   const [showAmc, setShowAmc] = useState(!!asset?.amc_provider);
+  const [showVendorDetails, setShowVendorDetails] = useState(false);
+  const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -92,20 +99,50 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, onClos
                 onChange={(e) => update('asset_tag', e.target.value)} placeholder="e.g. IT-2026-014" />
               <p className="mt-0.5 text-[11px] text-slate-400">Your own tracking code for physical tagging/scanning — must be unique.</p>
             </div>
-            <div>
+            <div className="rounded-lg border border-slate-200 p-3">
               <label className="mb-1 block text-xs font-medium text-slate-500">Location</label>
-              <input className={FIELD_CLASS} value={form.location}
-                onChange={(e) => update('location', e.target.value)} placeholder="e.g. HO – 3rd Floor" />
+              <input className={FIELD_CLASS} value={form.location_name}
+                onChange={(e) => update('location_name', e.target.value)} placeholder="e.g. HO – 3rd Floor" />
+              <button type="button" onClick={() => setShowLocationDetails((s) => !s)}
+                className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+                {showLocationDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                Add location details
+              </button>
+              {showLocationDetails && (
+                <div className="mt-2 space-y-2">
+                  <input className={FIELD_CLASS} value={form.location_address}
+                    onChange={(e) => update('location_address', e.target.value)} placeholder="Address" />
+                  <input className={FIELD_CLASS} value={form.location_gst_number}
+                    onChange={(e) => update('location_gst_number', e.target.value)} placeholder="GST number" />
+                </div>
+              )}
             </div>
           </div>
 
-          <div>
+          <div className="rounded-lg border border-slate-200 p-3">
             <label className="mb-1 block text-xs font-medium text-slate-500">Vendor</label>
             <input list="asset-vendor-suggestions" className={FIELD_CLASS} value={form.vendor_name}
               onChange={(e) => update('vendor_name', e.target.value)} placeholder="Type a vendor name — new or existing" />
             <datalist id="asset-vendor-suggestions">
               {vendors?.map((v) => <option key={v.id} value={v.name} />)}
             </datalist>
+
+            <button type="button" onClick={() => setShowVendorDetails((s) => !s)}
+              className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+              {showVendorDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              Add GST, address & phone
+            </button>
+
+            {showVendorDetails && (
+              <div className="mt-2 space-y-2">
+                <input className={FIELD_CLASS} value={form.vendor_gst_number}
+                  onChange={(e) => update('vendor_gst_number', e.target.value)} placeholder="GST number" />
+                <input className={FIELD_CLASS} value={form.vendor_address}
+                  onChange={(e) => update('vendor_address', e.target.value)} placeholder="Address" />
+                <input type="tel" className={FIELD_CLASS} value={form.vendor_phone}
+                  onChange={(e) => update('vendor_phone', e.target.value)} placeholder="Phone number" />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
