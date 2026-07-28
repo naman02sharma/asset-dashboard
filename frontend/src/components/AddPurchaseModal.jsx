@@ -54,6 +54,57 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // --- Vendor autocomplete / smart auto-fill ---
+  // Matches Vendor Management page's records so the "type a vendor name"
+  // field can behave two ways: (1) an EXISTING vendor name auto-fills
+  // its saved GST/address/phone instead of the user re-typing them
+  // every time, (2) a brand-new name prompts a confirmation before it's
+  // silently saved as a new vendor record on submit (findOrCreateVendor
+  // on the backend would otherwise do this unconditionally).
+  const [vendorConfirmed, setVendorConfirmed] = useState(true); // true = nothing new to confirm yet
+  const [showNewVendorPrompt, setShowNewVendorPrompt] = useState(false);
+
+  const matchedVendor = useMemo(() => {
+    const typed = form.vendor_name.trim().toLowerCase();
+    if (!typed) return null;
+    return vendors?.find((v) => v.name.trim().toLowerCase() === typed) || null;
+  }, [form.vendor_name, vendors]);
+
+  function updateVendorName(value) {
+    setForm((f) => ({ ...f, vendor_name: value }));
+    setShowNewVendorPrompt(false);
+    setVendorConfirmed(true); // re-armed on every keystroke; re-checked onBlur
+  }
+
+  function handleVendorNameBlur() {
+    const typed = form.vendor_name.trim();
+    if (!typed) return;
+    const match = vendors?.find((v) => v.name.trim().toLowerCase() === typed.toLowerCase());
+    if (match) {
+      // Existing vendor selected/typed — auto-fill its saved details so
+      // the admin doesn't have to look them up or re-type them.
+      setForm((f) => ({
+        ...f,
+        vendor_name: match.name, // normalize casing to the saved record
+        vendor_gst_number: match.gst_number || '',
+        vendor_address: match.address || '',
+        vendor_phone: match.contact_phone || '',
+      }));
+      setShowVendorDetails(true);
+      setVendorConfirmed(true);
+      setShowNewVendorPrompt(false);
+    } else {
+      // Unrecognized name — ask before it gets saved as a new vendor.
+      setVendorConfirmed(false);
+      setShowNewVendorPrompt(true);
+    }
+  }
+
+  function confirmNewVendor() {
+    setVendorConfirmed(true);
+    setShowNewVendorPrompt(false);
+  }
+
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
@@ -67,6 +118,13 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+
+    if (!vendorConfirmed) {
+      setShowNewVendorPrompt(true);
+      setError(`Please confirm whether to save "${form.vendor_name.trim()}" as a new vendor before continuing.`);
+      return;
+    }
+
     setSubmitting(true);
 
     let created;
@@ -134,12 +192,37 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
               list="vendor-suggestions"
               className={FIELD_CLASS}
               value={form.vendor_name}
-              onChange={(e) => update('vendor_name', e.target.value)}
+              onChange={(e) => updateVendorName(e.target.value)}
+              onBlur={handleVendorNameBlur}
               placeholder="Type a vendor name — new or existing"
             />
             <datalist id="vendor-suggestions">
               {vendors?.map((v) => <option key={v.id} value={v.name} />)}
             </datalist>
+
+            {matchedVendor && (
+              <p className="mt-1.5 text-xs text-green-700">
+                Matched existing vendor — GST, address &amp; phone auto-filled below.
+              </p>
+            )}
+
+            {showNewVendorPrompt && !matchedVendor && (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-xs text-amber-800">
+                  "{form.vendor_name.trim()}" isn't in Vendor Management yet. Save it as a new vendor?
+                </p>
+                <div className="flex shrink-0 gap-1.5">
+                  <button type="button" onClick={confirmNewVendor}
+                    className="rounded-md bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700">
+                    Yes, save
+                  </button>
+                  <button type="button" onClick={() => setShowNewVendorPrompt(false)}
+                    className="rounded-md px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100">
+                    Edit name
+                  </button>
+                </div>
+              </div>
+            )}
 
             <button type="button" onClick={() => setShowVendorDetails((s) => !s)}
               className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
