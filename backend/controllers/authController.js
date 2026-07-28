@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { pool } from '../config/db.js';
 import { sendPasswordResetEmail } from '../services/emailService.js';
+import { sendCsv } from '../utils/csv.js';
 
 function issueToken(user) {
   return jwt.sign(
@@ -96,7 +97,28 @@ export async function login(req, res) {
     return res.status(403).json({ error: 'Your account is awaiting admin approval. Please check back once an admin has approved it.' });
   }
 
+  // Employee Status page's "Login time" column — best-effort, fire and
+  // forget relative to the response: a failure here should never block
+  // an otherwise-successful login.
+  pool.query(`UPDATE users SET last_login_at = now() WHERE id = $1::uuid`, [user.id])
+    .catch((err) => console.warn('Could not record last_login_at for', user.id, err.message));
+
   res.json({ token: issueToken(user), user: publicUser(user) });
+}
+
+/**
+ * POST /api/auth/logout
+ * Records "Logoff time" for the Employee Status page. Since sessions
+ * here are stateless JWTs (no server-side session to actually
+ * invalidate), this is a best-effort timestamp only — it depends on
+ * the frontend calling this before discarding its token (see App.jsx's
+ * onLogout). A browser crash/force-quit/manually-cleared token will
+ * never call this, same limitation any client-driven logout tracking
+ * has without a server-side session store.
+ */
+export async function logout(req, res) {
+  await pool.query(`UPDATE users SET last_logout_at = now() WHERE id = $1::uuid`, [req.user.id]);
+  res.json({ ok: true });
 }
 
 /**
@@ -228,16 +250,121 @@ export async function resetPassword(req, res) {
 }
 
 /**
- * GET /api/auth/users — admin-only. Backs the "Manage Users" panel.
+ * GET /api/auth/users — admin-only. Backs the "Manage Users" panel AND
+ * the Employee Status / HR Dashboard page (same underlying data — the
+ * latter just also surfaces department/position/manager/login-time).
  * Pending-approval accounts sort first so an admin sees who's waiting
  * on them before scrolling through the already-approved team list.
+ * manager_name is joined in read-only, purely for display — editing
+ * who someone reports to goes through manager_id via
+ * updateEmployeeDetails below.
  */
 export async function listUsers(req, res) {
   const { rows } = await pool.query(
-    `SELECT id, name, email, role, is_approved, created_at FROM users
-     ORDER BY is_approved ASC, created_at ASC`
+    `SELECT u.id, u.name, u.email, u.role, u.is_approved, u.created_at,
+            u.department, u.position, u.manager_id, m.name AS manager_name,
+            u.last_login_at, u.last_logout_at
+     FROM users u
+     LEFT JOIN users m ON m.id = u.manager_id
+     ORDER BY u.is_approved ASC, u.created_at ASC`
   );
   res.json(rows);
+}
+
+const EMPLOYEE_CSV_COLUMNS = [
+  { key: 'name', label: 'Name' },
+  { key: 'email', label: 'Email' },
+  { key: 'role', label: 'Role', format: (v) => (v === 'admin' ? 'Admin' : 'Employee') },
+  { key: 'position', label: 'Position' },
+  { key: 'department', label: 'Department' },
+  { key: 'manager_name', label: 'Reports To' },
+  { key: 'is_approved', label: 'Status', format: (v) => (v ? 'Active' : 'Inactive') },
+  { key: 'created_at', label: 'Date Added' },
+  { key: 'last_login_at', label: 'Last Login' },
+  { key: 'last_logout_at', label: 'Last Logoff' },
+];
+
+/**
+ * GET /api/auth/users/export — admin-only. CSV of the Employee Status
+ * directory — same underlying query as listUsers, just written out as
+ * a file. Registered as a fixed path before any /:id-shaped route
+ * would matter, same reasoning as purchases'/assets' own /export
+ * endpoints.
+ */
+export async function exportUsers(req, res) {
+  const { rows } = await pool.query(
+    `SELECT u.id, u.name, u.email, u.role, u.is_approved, u.created_at,
+            u.department, u.position, u.manager_id, m.name AS manager_name,
+            u.last_login_at, u.last_logout_at
+     FROM users u
+     LEFT JOIN users m ON m.id = u.manager_id
+     ORDER BY u.name ASC`
+  );
+  const stamp = new Date().toISOString().slice(0, 10);
+  sendCsv(res, `employee-status-${stamp}.csv`, rows, EMPLOYEE_CSV_COLUMNS);
+}
+
+/**
+ * PATCH /api/auth/users/:id/details — admin-only — { department?, position?, manager_id? }
+ * The Employee Status page's HR fields — kept on a separate endpoint
+ * from updateUserRole/updateUserApproval above so each keeps its own
+ * narrow validation, same pattern purchaseController/assetController
+ * use for status vs. general-edit endpoints.
+ */
+export async function updateEmployeeDetails(req, res) {
+  const { id } = req.params;
+  const { department, position, manager_id } = req.body;
+
+  const { rows: existing } = await pool.query(`SELECT id FROM users WHERE id = $1::uuid`, [id]);
+  if (!existing.length) return res.status(404).json({ error: 'User not found.' });
+
+  let managerId = manager_id === '' || manager_id === undefined ? undefined : manager_id;
+  if (managerId === null) managerId = null; // explicit "no manager"
+
+  if (managerId) {
+    if (managerId === id) {
+      return res.status(400).json({ error: 'Someone cannot be their own manager.' });
+    }
+    // Walk the proposed manager's own chain upward — if it ever
+    // reaches `id`, assigning this manager would create a cycle
+    // (A reports to B reports to ... reports to A). The DB's CHECK
+    // constraint only catches the direct self-reference case; a
+    // multi-hop cycle has to be caught here before the UPDATE runs.
+    let cursor = managerId;
+    const seen = new Set();
+    while (cursor) {
+      if (cursor === id) {
+        return res.status(400).json({ error: 'That would create a circular reporting chain.' });
+      }
+      if (seen.has(cursor)) break; // pre-existing cycle unrelated to this edit — don't loop forever
+      seen.add(cursor);
+      const { rows } = await pool.query(`SELECT manager_id FROM users WHERE id = $1::uuid`, [cursor]);
+      cursor = rows[0]?.manager_id || null;
+    }
+    const { rows: managerExists } = await pool.query(`SELECT id FROM users WHERE id = $1::uuid`, [managerId]);
+    if (!managerExists.length) return res.status(400).json({ error: 'Selected manager account not found.' });
+  }
+
+  const setClauses = [];
+  const values = [];
+  if (department !== undefined) { values.push(department || null); setClauses.push(`department = $${values.length}`); }
+  if (position !== undefined) { values.push(position || null); setClauses.push(`position = $${values.length}`); }
+  if (managerId !== undefined) { values.push(managerId); setClauses.push(`manager_id = $${values.length}`); }
+
+  if (setClauses.length) {
+    values.push(id);
+    await pool.query(`UPDATE users SET ${setClauses.join(', ')} WHERE id = $${values.length}::uuid`, values);
+  }
+
+  const { rows: full } = await pool.query(
+    `SELECT u.id, u.name, u.email, u.role, u.is_approved, u.created_at,
+            u.department, u.position, u.manager_id, m.name AS manager_name,
+            u.last_login_at, u.last_logout_at
+     FROM users u LEFT JOIN users m ON m.id = u.manager_id
+     WHERE u.id = $1::uuid`,
+    [id]
+  );
+  res.json(full[0]);
 }
 
 /**

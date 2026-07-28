@@ -125,11 +125,17 @@ export const api = {
   // --- Auth ---
   register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login: (data) => request('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (token, newPassword) => request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   listUsers: () => request('/auth/users'),
   updateUserRole: (id, role) => request(`/auth/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   updateUserApproval: (id, is_approved) => request(`/auth/users/${id}/approval`, { method: 'PATCH', body: JSON.stringify({ is_approved }) }),
+  // Employee Status / HR Dashboard fields — department, position, and
+  // who this person reports to (manager_id). Distinct from role/approval
+  // above, which govern in-app permissions rather than HR org data.
+  updateEmployeeDetails: (id, data) => request(`/auth/users/${id}/details`, { method: 'PATCH', body: JSON.stringify(data) }),
+  exportEmployees: () => downloadFile('/auth/users/export'),
   deleteUser: (id) => request(`/auth/users/${id}`, { method: 'DELETE' }),
   getMe: () => request('/auth/me'),
   updateNotificationSettings: (data) =>
@@ -164,6 +170,11 @@ export const api = {
   },
 
   createPurchase: (data) => request('/purchases', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Multi-item purchase: several line items, one vendor/order, grouped
+  // server-side by a shared purchase_order_id. Returns
+  // { purchase_order_id, items: [...] }.
+  createPurchaseOrder: (data) => request('/purchases/batch', { method: 'POST', body: JSON.stringify(data) }),
 
   // Admin-only general edit — any of a purchase's own fields (item
   // name, vendor, quantity, unit cost, dates, PO number, etc). Separate
