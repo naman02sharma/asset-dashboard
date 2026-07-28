@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/db.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -13,6 +14,15 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(rows);
 }));
 
+// Deliberately NOT admin-gated: creating a vendor is something any
+// logged-in user already does implicitly just by typing a new vendor
+// name on the New Purchase form (findOrCreateVendor in
+// purchaseController.js) — any employee can already trigger this path,
+// so gating the Vendor Management page's own "Add Vendor" button would
+// just be a second, inconsistent way to do the same thing. Matches the
+// same create-is-open/edit-is-admin-only split used for purchases and
+// assets (createPurchase/createAsset aren't admin-gated; updatePurchase/
+// updateAsset are).
 router.post('/', asyncHandler(async (req, res) => {
   const { name, website, contact_email, contact_phone, gst_number, address } = req.body;
   if (!name) return res.status(400).json({ error: 'Vendor name is required.' });
@@ -25,7 +35,15 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(201).json({ id: rows[0].id });
 }));
 
-router.patch('/:id', asyncHandler(async (req, res) => {
+// BUGFIX (uniformity audit): this was the only "edit an existing
+// record" endpoint in the whole app with no requireAdmin gate —
+// PATCH /purchases/:id and PATCH /assets/:id both require admin, and
+// the frontend elsewhere hides every edit control behind isAdmin (see
+// PurchaseTable/InventoryPage/CompletedOrdersPage). VendorManagementPage
+// showed its Edit pencil to every user regardless of role, and this
+// route would have honored that request from a non-admin. Both sides
+// fixed together (see VendorManagementPage.jsx).
+router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, website, contact_email, contact_phone, gst_number, address } = req.body;
   if (!name) return res.status(400).json({ error: 'Vendor name is required.' });

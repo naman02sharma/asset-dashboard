@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { LogOut, Settings, Archive, Boxes, Users, Truck, IdCard } from 'lucide-react';
+import { LogOut, Settings, Archive, Boxes, Users, Truck, Contact } from 'lucide-react';
 import { api, getToken, clearToken } from './api/api.js';
 import { mockPurchases } from './mock/mockData.js';
 import logo from './assets/logo.png';
@@ -431,7 +431,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                 className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
                   view === 'employees' ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
                 }`}>
-                <IdCard size={16} />
+                <Contact size={16} />
               </button>
             )}
             <button onClick={() => setShowHistory(true)}

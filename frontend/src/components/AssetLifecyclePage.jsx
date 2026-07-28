@@ -47,7 +47,7 @@ export default function AssetLifecyclePage({ vendors, locations, onBack, showToa
           onModifyAdvancePayment={onModifyAdvancePayment} onRecordDelivery={onRecordDelivery}
           onEditPurchase={onEditPurchase} onSummaryChange={onSummaryChange} />
       ) : (
-        <InventoryPage vendors={vendors} showToast={showToast} embedded initialQuery={initialQuery} />
+        <InventoryPage vendors={vendors} locations={locations} showToast={showToast} embedded initialQuery={initialQuery} />
       )}
     </div>
   );

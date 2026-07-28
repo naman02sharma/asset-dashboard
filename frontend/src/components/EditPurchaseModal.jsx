@@ -41,9 +41,34 @@ export default function EditPurchaseModal({ purchase, vendors, locations, onClos
   const [showTracking, setShowTracking] = useState(!!(purchase.courier_name || purchase.tracking_number));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [matchedVendor, setMatchedVendor] = useState(null);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  // Uniformity fix: AddPurchaseModal auto-fills vendor details the
+  // moment a typed name matches an existing vendor; this editor never
+  // did the same lookup at all, so retyping an existing vendor's name
+  // here surfaced no feedback and no convenience. Kept consistent with
+  // THIS form's own documented behavior though (the note below the
+  // detail fields: "only fills in gaps, won't overwrite") — this only
+  // fills fields that are still blank, never clobbers something the
+  // admin already typed or that came pre-filled from the purchase.
+  function handleVendorNameBlur() {
+    const typed = form.vendor_name.trim();
+    if (!typed) { setMatchedVendor(null); return; }
+    const match = vendors?.find((v) => v.name.trim().toLowerCase() === typed.toLowerCase());
+    setMatchedVendor(match || null);
+    if (match) {
+      setForm((f) => ({
+        ...f,
+        vendor_gst_number: f.vendor_gst_number || match.gst_number || '',
+        vendor_address: f.vendor_address || match.address || '',
+        vendor_phone: f.vendor_phone || match.contact_phone || '',
+      }));
+      if (match.gst_number || match.address || match.contact_phone) setShowVendorDetails(true);
+    }
   }
 
   async function handleSubmit(e) {
@@ -114,12 +139,19 @@ export default function EditPurchaseModal({ purchase, vendors, locations, onClos
               list="edit-vendor-suggestions"
               className={FIELD_CLASS}
               value={form.vendor_name}
-              onChange={(e) => update('vendor_name', e.target.value)}
+              onChange={(e) => { update('vendor_name', e.target.value); setMatchedVendor(null); }}
+              onBlur={handleVendorNameBlur}
               placeholder="Type a vendor name — new or existing"
             />
             <datalist id="edit-vendor-suggestions">
               {vendors?.map((v) => <option key={v.id} value={v.name} />)}
             </datalist>
+
+            {matchedVendor && (
+              <p className="mt-1.5 text-xs text-green-700">
+                Matched existing vendor — any blank GST/address/phone fields below were filled in from it.
+              </p>
+            )}
 
             <button type="button" onClick={() => setShowVendorDetails((s) => !s)}
               className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">

@@ -17,7 +17,7 @@ const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
-export default function InventoryPage({ vendors, onBack, showToast, embedded = false, initialQuery = '' }) {
+export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '' }) {
   const { isAdmin } = useAuth();
 
   const [assets, setAssets] = useState([]);
@@ -502,7 +502,7 @@ export default function InventoryPage({ vendors, onBack, showToast, embedded = f
       </>
 
       {showAssetForm && (
-        <AssetFormModal mode="create" vendors={vendors} onClose={() => setShowAssetForm(false)} onSubmit={handleCreateAsset} />
+        <AssetFormModal mode="create" vendors={vendors} locations={locations} onClose={() => setShowAssetForm(false)} onSubmit={handleCreateAsset} />
       )}
       {showImportModal && (
         <ImportAssetsModal
@@ -511,7 +511,7 @@ export default function InventoryPage({ vendors, onBack, showToast, embedded = f
         />
       )}
       {editingAsset && (
-        <AssetFormModal mode="edit" asset={editingAsset} vendors={vendors}
+        <AssetFormModal mode="edit" asset={editingAsset} vendors={vendors} locations={locations}
           onClose={() => setEditingAsset(null)} onSubmit={handleEditAsset} />
       )}
       {assignTarget && (

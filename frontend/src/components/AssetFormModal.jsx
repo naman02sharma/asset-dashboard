@@ -10,7 +10,7 @@ const FIELD_CLASS =
  * asset's History/Trail automatically by the backend (updateAsset) —
  * this form doesn't need to know or do anything special about that.
  */
-export default function AssetFormModal({ mode = 'create', asset, vendors, onClose, onSubmit }) {
+export default function AssetFormModal({ mode = 'create', asset, vendors, locations, onClose, onSubmit }) {
   const [form, setForm] = useState({
     asset_name: asset?.asset_name || '',
     category: asset?.category || '',
@@ -40,6 +40,25 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, onClos
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  // Uniformity fix: matches the same "fill in blanks only" autofill
+  // AddPurchaseModal/EditPurchaseModal do for their own vendor fields —
+  // this form had a vendor datalist but never looked the typed name up
+  // against the vendor list at all.
+  function handleVendorNameBlur() {
+    const typed = form.vendor_name.trim();
+    if (!typed) return;
+    const match = vendors?.find((v) => v.name.trim().toLowerCase() === typed.toLowerCase());
+    if (match) {
+      setForm((f) => ({
+        ...f,
+        vendor_gst_number: f.vendor_gst_number || match.gst_number || '',
+        vendor_address: f.vendor_address || match.address || '',
+        vendor_phone: f.vendor_phone || match.contact_phone || '',
+      }));
+      if (match.gst_number || match.address || match.contact_phone) setShowVendorDetails(true);
+    }
   }
 
   async function handleSubmit(e) {
@@ -101,8 +120,23 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, onClos
             </div>
             <div className="rounded-lg border border-slate-200 p-3">
               <label className="mb-1 block text-xs font-medium text-slate-500">Location</label>
-              <input className={FIELD_CLASS} value={form.location_name}
-                onChange={(e) => update('location_name', e.target.value)} placeholder="e.g. HO – 3rd Floor" />
+              <input
+                list="asset-location-suggestions"
+                className={FIELD_CLASS}
+                value={form.location_name}
+                onChange={(e) => update('location_name', e.target.value)}
+                placeholder="e.g. HO – 3rd Floor — new or existing"
+              />
+              {/* BUGFIX (uniformity audit): this field used to be plain
+                  free text with no autocomplete at all — every other
+                  location field in the app (Asset Purchase form's New/
+                  Edit Purchase modals) suggests from the shared
+                  locations list; `locations` simply wasn't being passed
+                  down this far (App -> AssetLifecyclePage stopped at
+                  CompletedOrdersPage, never reached InventoryPage). */}
+              <datalist id="asset-location-suggestions">
+                {locations?.map((l) => <option key={l.id} value={l.name} />)}
+              </datalist>
               <button type="button" onClick={() => setShowLocationDetails((s) => !s)}
                 className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
                 {showLocationDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -122,7 +156,8 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, onClos
           <div className="rounded-lg border border-slate-200 p-3">
             <label className="mb-1 block text-xs font-medium text-slate-500">Vendor</label>
             <input list="asset-vendor-suggestions" className={FIELD_CLASS} value={form.vendor_name}
-              onChange={(e) => update('vendor_name', e.target.value)} placeholder="Type a vendor name — new or existing" />
+              onChange={(e) => update('vendor_name', e.target.value)} onBlur={handleVendorNameBlur}
+              placeholder="Type a vendor name — new or existing" />
             <datalist id="asset-vendor-suggestions">
               {vendors?.map((v) => <option key={v.id} value={v.name} />)}
             </datalist>
