@@ -37,7 +37,7 @@ export default function MaintenanceCalendarCard({ showToast }) {
     .slice(0, 5);
 
   return (
-    <div className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="w-full rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md">
       <div className="mb-2 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
           <CalendarDays size={12} className="text-brand-600" /> Upcoming

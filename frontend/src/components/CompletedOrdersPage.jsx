@@ -6,6 +6,7 @@ import { SkeletonCardRows } from './Skeleton.jsx';
 import AdvancePaymentEditor from './AdvancePaymentEditor.jsx';
 import SpendTrendChart from './SpendTrendChart.jsx';
 import MaintenanceCalendarCard from './MaintenanceCalendarCard.jsx';
+import OrderCalendarCard from './OrderCalendarCard.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
 import FilesCell from './FilesCell.jsx';
@@ -156,8 +157,9 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <SpendTrendChart />
+        <OrderCalendarCard showToast={showToast} />
         <MaintenanceCalendarCard showToast={showToast} />
       </div>
 

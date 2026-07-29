@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search, ShieldCheck, User, Network, LayoutList, Pencil, Check, X, Download, Users2, UserCheck2, Building2, ArrowUpDown, UserX } from 'lucide-react';
+import { Loader2, Search, ShieldCheck, User, Network, LayoutList, Pencil, Check, X, Download, Users2, UserCheck2, Building2, UserX } from 'lucide-react';
 import { api } from '../api/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import DepartmentBreakdownChart from './DepartmentBreakdownChart.jsx';
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-1.5 px-2.5 text-xs text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -81,13 +82,14 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
     }
   }
 
-  async function handleToggleRole(u) {
-    const nextRole = u.role === 'admin' ? 'employee' : 'admin';
+  async function handleRoleChange(u, nextRole) {
+    if (nextRole === u.role) return;
     setSavingId(u.id);
     try {
       const updated = await api.updateUserRole(u.id, nextRole);
       setUsers((rows) => rows.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
-      showToast(`${updated.name} is now ${updated.role === 'admin' ? 'an admin' : 'an employee'}.`);
+      const label = updated.role === 'admin' ? 'an admin' : updated.role === 'editor' ? 'an editor' : 'an employee';
+      showToast(`${updated.name} is now ${label}.`);
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -207,23 +209,26 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
       )}
 
       {users && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-400"><Users2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Total accounts</span></div>
-            <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.total}</p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:col-span-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center gap-2 text-slate-400"><Users2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Total accounts</span></div>
+              <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.total}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center gap-2 text-slate-400"><UserCheck2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Active</span></div>
+              <p className="mt-1.5 text-2xl font-bold text-green-700">{kpis.active}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center gap-2 text-slate-400"><ShieldCheck size={15} /><span className="text-xs font-medium uppercase tracking-wide">Admins</span></div>
+              <p className="mt-1.5 text-2xl font-bold text-brand-700">{kpis.admins}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center gap-2 text-slate-400"><Building2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Departments</span></div>
+              <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.departments}</p>
+            </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-400"><UserCheck2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Active</span></div>
-            <p className="mt-1.5 text-2xl font-bold text-green-700">{kpis.active}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-400"><ShieldCheck size={15} /><span className="text-xs font-medium uppercase tracking-wide">Admins</span></div>
-            <p className="mt-1.5 text-2xl font-bold text-brand-700">{kpis.admins}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-400"><Building2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Departments</span></div>
-            <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.departments}</p>
-          </div>
+          <DepartmentBreakdownChart users={users} />
         </div>
       )}
 
@@ -245,6 +250,7 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 focus:border-brand-500 focus:outline-none">
               <option value="">All roles</option>
               <option value="admin">Admin</option>
+              <option value="editor">Editor</option>
               <option value="employee">Employee</option>
             </select>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
@@ -279,8 +285,10 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                       <tr key={u.id} className="hover:bg-slate-50/60">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
-                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${u.role === 'admin' ? 'bg-brand-50 text-brand-600' : 'bg-slate-100 text-slate-400'}`}>
-                              {u.role === 'admin' ? <ShieldCheck size={14} /> : <User size={14} />}
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                              u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'editor' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+                            }`}>
+                              {u.role === 'admin' ? <ShieldCheck size={14} /> : u.role === 'editor' ? <Pencil size={14} /> : <User size={14} />}
                             </span>
                             <div className="min-w-0">
                               <p className="truncate font-medium text-slate-800">{u.name}</p>
@@ -290,17 +298,21 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                         </td>
                         <td className="px-4 py-3">
                           {isAdmin ? (
-                            <button onClick={() => handleToggleRole(u)} disabled={savingId === u.id}
-                              title={u.role === 'admin' ? 'Demote to employee' : 'Promote to admin'}
-                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                                u.role === 'admin' ? 'bg-brand-100 text-brand-700 hover:bg-brand-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            <select value={u.role} disabled={savingId === u.id}
+                              onChange={(e) => handleRoleChange(u, e.target.value)}
+                              title="Change role"
+                              className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                                u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                               }`}>
-                              {savingId === u.id ? <Loader2 size={10} className="animate-spin" /> : <ArrowUpDown size={10} />}
-                              {u.role === 'admin' ? 'Admin' : 'Employee'}
-                            </button>
+                              <option value="employee">Employee</option>
+                              <option value="editor">Editor</option>
+                              <option value="admin">Admin</option>
+                            </select>
                           ) : (
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.role === 'admin' ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500'}`}>
-                              {u.role === 'admin' ? 'Admin' : 'Employee'}
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {u.role === 'admin' ? 'Admin' : u.role === 'editor' ? 'Editor' : 'Employee'}
                             </span>
                           )}
                         </td>
@@ -402,9 +414,11 @@ function HierarchyNode({ user, childrenOf, depth }) {
   const children = childrenOf.get(user.id) || [];
   return (
     <li>
-      <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-50" style={{ marginLeft: depth * 28 }}>
-        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${user.role === 'admin' ? 'bg-brand-50 text-brand-600' : 'bg-slate-100 text-slate-400'}`}>
-          {user.role === 'admin' ? <ShieldCheck size={13} /> : <User size={13} />}
+      <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50" style={{ marginLeft: depth * 28 }}>
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+          user.role === 'admin' ? 'bg-brand-50 text-brand-600' : user.role === 'editor' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+        }`}>
+          {user.role === 'admin' ? <ShieldCheck size={13} /> : user.role === 'editor' ? <Pencil size={13} /> : <User size={13} />}
         </span>
         <div className="min-w-0">
           <span className="text-sm font-medium text-slate-800">{user.name}</span>

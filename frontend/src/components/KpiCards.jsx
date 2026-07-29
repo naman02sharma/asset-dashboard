@@ -91,7 +91,7 @@ export default function KpiCards({ summary }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
           <div className="flex items-start justify-between">
             <p className="text-sm font-medium text-slate-500">{card.label}</p>
             <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${card.iconBg}`}>
