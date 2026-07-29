@@ -49,7 +49,7 @@ export default function PurchaseTable({
   onInsuranceToggle, onUploadPhotos, onUploadInvoices, onDeleteFile,
   onModifyAdvancePayment, onCompleteMaintenance, onRecordDelivery, onEditPurchase,
 }) {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
   const [sortBy, sortDir] = sort.split(':');
   const [updatingId, setUpdatingId] = useState(null);
   const [completingId, setCompletingId] = useState(null);
@@ -159,7 +159,7 @@ export default function PurchaseTable({
                   <td className="relative px-5 py-4 font-mono tabular-nums text-green-700">
                     <div className="flex items-center gap-1">
                       {currency(p.amount_paid)}
-                      {isAdmin && <AdvancePaymentEditor purchase={p} onSave={onModifyAdvancePayment} />}
+                      {canEdit && <AdvancePaymentEditor purchase={p} onSave={onModifyAdvancePayment} />}
                     </div>
                   </td>
                   <td className="px-5 py-4">
@@ -231,7 +231,7 @@ export default function PurchaseTable({
                       >
                         <History size={15} />
                       </button>
-                      {isAdmin && onEditPurchase && (
+                      {canEdit && onEditPurchase && (
                         <button
                           onClick={() => setEditTarget(p)}
                           title="Edit purchase"
@@ -240,7 +240,7 @@ export default function PurchaseTable({
                           <Pencil size={15} />
                         </button>
                       )}
-                      {isAdmin && (
+                      {canEdit && (
                         <button
                           onClick={() => onDeleteClick(p)}
                           title="Delete purchase"

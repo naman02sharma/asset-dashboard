@@ -407,8 +407,10 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           <div className="flex shrink-0 items-center gap-3">
             <div className="hidden items-center gap-1.5 sm:flex">
               <span className="text-sm text-slate-500">{user.name}</span>
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${isAdmin ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500'}`}>
-                {isAdmin ? 'Admin' : 'Employee'}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                user.role === 'admin' ? 'bg-brand-100 text-brand-700' : user.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {user.role === 'admin' ? 'Admin' : user.role === 'editor' ? 'Editor' : 'Employee'}
               </span>
             </div>
             <button onClick={() => setView(view === 'assets' ? 'dashboard' : 'assets')}

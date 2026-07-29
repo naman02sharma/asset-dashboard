@@ -6,14 +6,14 @@ import { useAuth } from '../context/AuthContext.jsx';
 
 // BUGFIX (uniformity audit): this page used to show its Edit pencil to
 // every user regardless of role — the only "edit an existing record"
-// control in the app that wasn't gated behind isAdmin (PurchaseTable,
+// control in the app that wasn't gated behind canEdit (PurchaseTable,
 // InventoryPage, and CompletedOrdersPage all hide their equivalent
 // edit/modify controls the same way). The backend's PATCH /vendors/:id
 // is now admin-gated too (see backend/routes/vendors.js) — this is the
 // matching frontend fix so a non-admin never sees a button that would
 // just 403 anyway.
 export default function VendorManagementPage({ vendors, onUpdateVendor, onCreateVendor }) {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
   const [query, setQuery] = useState('');
   const [activeVendor, setActiveVendor] = useState(null); // { mode: 'create' | 'edit', data: vendor }
 
@@ -73,7 +73,7 @@ export default function VendorManagementPage({ vendors, onUpdateVendor, onCreate
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((v) => (
             <div key={v.id} className="relative group rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-              {isAdmin && (
+              {canEdit && (
                 <button
                   onClick={() => setActiveVendor({ mode: 'edit', data: v })}
                   className="absolute top-4 right-4 p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"

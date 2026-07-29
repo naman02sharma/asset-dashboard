@@ -27,7 +27,7 @@ import {
   recordPartialDelivery,
 } from '../controllers/purchaseController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { requireAdminOrEditor } from '../middleware/auth.js';
 import { uploadInsurancePhotos, uploadInvoiceFiles } from '../middleware/upload.js';
 
 const router = Router();
@@ -55,14 +55,14 @@ router.post('/batch', asyncHandler(createPurchaseOrder));
 // narrower single-purpose PATCHes below (status/advance-payment/
 // insurance/maintenance), each of which keeps its own endpoint and its
 // own validation/log.
-router.patch('/:id', requireAdmin, asyncHandler(updatePurchase));
+router.patch('/:id', requireAdminOrEditor, asyncHandler(updatePurchase));
 
 router.patch('/:id/status', asyncHandler(updatePurchaseStatus));
 router.patch('/:id/record-delivery', asyncHandler(recordPartialDelivery));
 router.patch('/:id/delivery-date', asyncHandler(updateDeliveryDate));
-router.patch('/:id/restore', requireAdmin, asyncHandler(restorePurchase));
+router.patch('/:id/restore', requireAdminOrEditor, asyncHandler(restorePurchase));
 router.patch('/:id/insurance', asyncHandler(updateInsuranceStatus));
-router.patch('/:id/advance-payment', requireAdmin, asyncHandler(updateAdvancePayment));
+router.patch('/:id/advance-payment', requireAdminOrEditor, asyncHandler(updateAdvancePayment));
 router.patch('/:id/maintenance', asyncHandler(scheduleMaintenance));
 router.patch('/:id/maintenance/complete', asyncHandler(completeMaintenance));
 router.get('/:id/audit', asyncHandler(getPurchaseAudit));
@@ -72,9 +72,9 @@ router.post('/:id/payments', asyncHandler(recordPayment));
 // Multipart uploads — multer parses req.files before the handler runs.
 router.post('/:id/insurance-photos', uploadInsurancePhotos, asyncHandler(saveInsurancePhotos));
 router.post('/:id/invoices', uploadInvoiceFiles, asyncHandler(saveInvoiceFiles));
-router.delete('/:id/files/:fileId', requireAdmin, asyncHandler(deletePurchaseFile));
+router.delete('/:id/files/:fileId', requireAdminOrEditor, asyncHandler(deletePurchaseFile));
 
 // DELETE /:id?mode=permanent|history (default: history — soft delete) — admin-only either way.
-router.delete('/:id', requireAdmin, asyncHandler(deletePurchase));
+router.delete('/:id', requireAdminOrEditor, asyncHandler(deletePurchase));
 
 export default router;

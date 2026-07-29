@@ -234,7 +234,7 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
 }
 
 function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, onDelete, showToast, onModifyAdvancePayment, onRecordDelivery, onEditPurchase, vendors, locations, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile, onSummaryChange }) {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -296,7 +296,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
               way to be corrected: delivered purchases live only here,
               not on the active dashboard, so this is the only place
               the control could ever be reached from. */}
-          {isAdmin && p.amount_remaining !== 0 && onModifyAdvancePayment && (
+          {canEdit && p.amount_remaining !== 0 && onModifyAdvancePayment && (
             <AdvancePaymentEditor purchase={p} onSave={onModifyAdvancePayment} />
           )}
         </div>
@@ -310,7 +310,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
           className="rounded-lg px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition-colors">
           {expanded ? 'Hide' : 'Manage'}
         </button>
-        {isAdmin && onEditPurchase && (
+        {canEdit && onEditPurchase && (
           <button onClick={() => setShowEdit(true)}
             title="Edit purchase"
             className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600">
@@ -322,7 +322,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
           className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600">
           <History size={15} />
         </button>
-        {isAdmin && (
+        {canEdit && (
           <button onClick={handleDeleteClick}
             title="Delete permanently — this cannot be undone"
             className={`rounded-lg p-2 transition-colors ${confirmingDelete ? 'bg-red-600 text-white' : 'text-slate-300 hover:bg-red-50 hover:text-red-600'}`}>

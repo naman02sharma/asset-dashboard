@@ -18,7 +18,7 @@ const currency = (n) =>
 const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
 export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '' }) {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
 
   const [assets, setAssets] = useState([]);
 
@@ -385,7 +385,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-60">
                 {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Export CSV
               </button>
-              {isAdmin && (
+              {canEdit && (
                 <button onClick={() => setShowImportModal(true)}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
                   <UploadCloud size={16} /> Import CSV
@@ -415,13 +415,13 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                 className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition-colors">
                 <Download size={13} /> Export selected
               </button>
-              {isAdmin && (
+              {canEdit && (
                 <button onClick={handleBulkRetire} disabled={bulkRetiring}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 transition-colors disabled:opacity-60">
                   {bulkRetiring ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />} Retire selected
                 </button>
               )}
-              {isAdmin && (
+              {canEdit && (
                 <button onClick={handleBulkDelete} disabled={bulkDeleting}
                   title="Permanently delete — this cannot be undone"
                   className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 transition-colors disabled:opacity-60">
@@ -635,7 +635,7 @@ function AmcStatusCell({ asset: a }) {
 }
 
 function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onModify, nested = false, selected = false, onToggleSelect }) {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const holderLabel = a.status === 'in_use' ? a.current_employee_name
     : a.status === 'under_repair' ? a.current_repair_vendor
@@ -687,7 +687,7 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
       <td className="relative px-4 py-3 font-mono tabular-nums text-slate-800">
         <div className="flex items-center gap-1">
           {currency(a.cost)}
-          {isAdmin && <AssetModifyEditor asset={a} onSave={onModify} />}
+          {canEdit && <AssetModifyEditor asset={a} onSave={onModify} />}
         </div>
       </td>
       <td className="px-4 py-3"><AmcStatusCell asset={a} /></td>
@@ -699,7 +699,7 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
             <>
               <IconAction icon={UserPlus} label="Assign" onClick={onAssign} />
               <IconAction icon={Wrench} label="Send for Repair" onClick={onDispatch} />
-              {isAdmin && <IconAction icon={Archive} label="Retire" onClick={onRetire} />}
+              {canEdit && <IconAction icon={Archive} label="Retire" onClick={onRetire} />}
             </>
           )}
           {a.status === 'in_use' && (
@@ -711,10 +711,10 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
           {a.status === 'under_repair' && (
             <IconAction icon={RotateCcw} label="Return from Repair" onClick={onReturn} />
           )}
-          {a.status === 'retired' && isAdmin && (
+          {a.status === 'retired' && canEdit && (
             <IconAction icon={RefreshCw} label="Restore to Available" onClick={onRestore} />
           )}
-          {isAdmin && (
+          {canEdit && (
             <button onClick={handleDeleteClick}
               title={confirmingDelete ? 'Click again to confirm — this cannot be undone' : 'Delete permanently'}
               className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${

@@ -26,7 +26,7 @@ const FIELD_LABELS = {
  * purely additive, reading the append-only log.
  */
 export default function AssetDetailDrawer({ assetId, onClose, onEdit, showToast, onAssetChanged }) {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
   const [data, setData] = useState(null); // { asset, holdings, changeLog }
   const [showQr, setShowQr] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -64,7 +64,7 @@ export default function AssetDetailDrawer({ assetId, onClose, onEdit, showToast,
                 <QrCode size={14} />
               </button>
             )}
-            {data && isAdmin && (
+            {data && canEdit && (
               <button onClick={() => onEdit(data.asset)} title="Edit asset"
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand-600">
                 <Pencil size={14} />

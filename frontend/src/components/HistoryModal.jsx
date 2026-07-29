@@ -16,7 +16,7 @@ const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-di
  * reflects that window, it doesn't enforce it client-side.
  */
 export default function HistoryModal({ onClose, onChanged }) {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -92,7 +92,7 @@ export default function HistoryModal({ onClose, onChanged }) {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
-                  {isAdmin ? (
+                  {canEdit ? (
                     <>
                       <button
                         disabled={busyId === p.id}

@@ -69,3 +69,22 @@ export function requireAdmin(req, res, next) {
   }
   next();
 }
+
+/**
+ * Gates operational edit/delete actions (purchases, inventory assets,
+ * vendors, inventory holder records) to admins AND editors — the
+ * three-role model's middle tier. Deliberately NOT used for anything
+ * in routes/auth.js (user list, role/approval changes, CSV export of
+ * employee data, the Employee Status/HR page's own endpoints) — those
+ * stay admin-only via requireAdmin above, since granting an editor
+ * visibility into HR data or the ability to change roles/approvals is
+ * exactly what this role is designed to exclude. See
+ * database/017_editor_role.sql for the three-way role CHECK
+ * constraint this depends on.
+ */
+export function requireAdminOrEditor(req, res, next) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'editor') {
+    return res.status(403).json({ error: 'This action requires an admin or editor account.' });
+  }
+  next();
+}

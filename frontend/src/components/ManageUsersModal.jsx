@@ -15,9 +15,13 @@ import { useAuth } from '../context/AuthContext.jsx';
  *     daily cron after PENDING_USER_EXPIRY_DAYS (see
  *     trackingService.purgeStaleUnapprovedUsers) — this button is the
  *     immediate, manual version of that same cleanup.
- *   - Promote/demote role ('admin' <-> 'employee') for already-
- *     approved accounts. The backend refuses to demote the last
- *     remaining admin (updateUserRole) or revoke your own access
+ *   - Change role among 'employee' / 'editor' / 'admin' for already-
+ *     approved accounts. 'editor' gets the same edit/delete rights as
+ *     admin on purchases/assets/vendors/inventory holders, but never
+ *     sees the Employee Status (HR) page or this Manage Users panel's
+ *     own actions — see requireAdminOrEditor in middleware/auth.js.
+ *     The backend refuses to move the last remaining admin away from
+ *     'admin' (updateUserRole) or revoke your own access
  *     (updateUserApproval), so neither can accidentally lock everyone
  *     out of admin-only actions.
  */
@@ -46,13 +50,14 @@ export default function ManageUsersModal({ onClose, showToast }) {
     };
   }, [users]);
 
-  async function handleToggleRole(u) {
-    const nextRole = u.role === 'admin' ? 'employee' : 'admin';
+  async function handleRoleChange(u, nextRole) {
+    if (nextRole === u.role) return;
     setUpdatingId(u.id);
     try {
       const updated = await api.updateUserRole(u.id, nextRole);
       setUsers((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
-      showToast(`${updated.name} is now ${updated.role === 'admin' ? 'an admin' : 'an employee'}.`);
+      const label = updated.role === 'admin' ? 'an admin' : updated.role === 'editor' ? 'an editor' : 'an employee';
+      showToast(`${updated.name} is now ${label}.`);
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -179,7 +184,9 @@ export default function ManageUsersModal({ onClose, showToast }) {
                   {approved.map((u) => (
                     <li key={u.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${u.role === 'admin' ? 'bg-brand-50 text-brand-600' : 'bg-slate-100 text-slate-400'}`}>
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'editor' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+                        }`}>
                           {u.role === 'admin' ? <ShieldCheck size={14} /> : <User size={14} />}
                         </span>
                         <div className="min-w-0">
@@ -190,16 +197,19 @@ export default function ManageUsersModal({ onClose, showToast }) {
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
-                        <button
-                          onClick={() => handleToggleRole(u)}
+                        <select
+                          value={u.role}
                           disabled={updatingId === u.id}
-                          title={u.role === 'admin' ? 'Demote to employee' : 'Promote to admin'}
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                            u.role === 'admin' ? 'bg-brand-100 text-brand-700 hover:bg-brand-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          onChange={(e) => handleRoleChange(u, e.target.value)}
+                          title="Change role"
+                          className={`rounded-full border-0 px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                            u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                           }`}
                         >
-                          {updatingId === u.id ? <Loader2 size={11} className="animate-spin" /> : u.role === 'admin' ? 'Admin' : 'Employee'}
-                        </button>
+                          <option value="employee">Employee</option>
+                          <option value="editor">Editor</option>
+                          <option value="admin">Admin</option>
+                        </select>
                         {u.id !== currentUser.id && (
                           <button
                             onClick={() => handleSetApproval(u, false)}

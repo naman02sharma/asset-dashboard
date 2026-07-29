@@ -432,11 +432,14 @@ export async function updateUserRole(req, res) {
   const { id } = req.params;
   const { role } = req.body;
 
-  if (!['admin', 'employee'].includes(role)) {
-    return res.status(400).json({ error: 'role must be "admin" or "employee".' });
+  if (!['admin', 'editor', 'employee'].includes(role)) {
+    return res.status(400).json({ error: 'role must be "admin", "editor", or "employee".' });
   }
 
-  if (role === 'employee') {
+  // Any change AWAY from admin (to editor or employee) needs this
+  // guard — not just the admin->employee case — since either one
+  // would otherwise be able to leave the app with zero admins left.
+  if (role !== 'admin') {
     const { rows: adminCount } = await pool.query(
       `SELECT COUNT(*)::int AS c FROM users WHERE role = 'admin' AND id <> $1::uuid`,
       [id]
