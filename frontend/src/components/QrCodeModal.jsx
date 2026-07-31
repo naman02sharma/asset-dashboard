@@ -37,7 +37,7 @@ export default function QrCodeModal({ asset, onClose }) {
             <QrCode size={16} className="text-brand-600" />
             <h2 className="text-sm font-semibold text-slate-900">Asset QR Code</h2>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} title="Close" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X size={16} />
           </button>
         </div>

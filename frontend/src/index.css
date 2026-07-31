@@ -26,3 +26,11 @@ body {
   from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* Subtle moving gradient for "Pending approval" panels (see
+   ApprovalStatusBadge.jsx) -- draws the eye without being distracting,
+   stops the moment an admin/senior approves or rejects the item. */
+@keyframes shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}

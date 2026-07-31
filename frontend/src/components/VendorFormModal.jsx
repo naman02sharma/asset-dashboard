@@ -39,7 +39,7 @@ export default function VendorFormModal({ mode = 'create', vendor, onClose, onSu
       <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl animate-[scaleIn_0.15s_ease-out]">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-slate-900">{mode === 'create' ? 'Add Vendor' : 'Edit Vendor'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
 
         <form id="vendor-form" onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-6 py-4">

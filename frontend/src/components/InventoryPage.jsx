@@ -11,6 +11,7 @@ import AssetModifyEditor from './AssetModifyEditor.jsx';
 import { SkeletonTableRows } from './Skeleton.jsx';
 import ImportAssetsModal from './ImportAssetsModal.jsx';
 import BulkAssignModal from './BulkAssignModal.jsx';
+import { ApprovalPanel } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const currency = (n) =>
@@ -18,7 +19,7 @@ const currency = (n) =>
 const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
 export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '' }) {
-  const { canEdit } = useAuth();
+  const { canEdit, isAdmin, canApprove } = useAuth();
 
   const [assets, setAssets] = useState([]);
 
@@ -99,6 +100,30 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
   function applyAssetUpdate(updated) {
     setAssets((rows) => rows.map((a) => (a.id === updated.id ? updated : a)));
     loadSummary();
+  }
+
+  // Admin/senior approve or reject a pending asset (see
+  // 018_asset_approval_workflow.sql / ApprovalStatusBadge.jsx) —
+  // mirrors App.jsx's handleApprovePurchase/handleRejectPurchase for
+  // the purchases side.
+  async function handleApproveAsset(id) {
+    try {
+      const updated = await api.approveAsset(id, true);
+      applyAssetUpdate(updated);
+      showToast('Asset approved.');
+    } catch (err) {
+      showToast(err.message || 'Could not approve this asset.', 'error');
+    }
+  }
+
+  async function handleRejectAsset(id, reason) {
+    try {
+      const updated = await api.approveAsset(id, false, reason);
+      applyAssetUpdate(updated);
+      showToast('Asset rejected.');
+    } catch (err) {
+      showToast(err.message || 'Could not reject this asset.', 'error');
+    }
   }
 
   async function handleCreateAsset(form) {
@@ -421,7 +446,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                   {bulkRetiring ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />} Retire selected
                 </button>
               )}
-              {canEdit && (
+              {isAdmin && (
                 <button onClick={handleBulkDelete} disabled={bulkDeleting}
                   title="Permanently delete — this cannot be undone"
                   className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 transition-colors disabled:opacity-60">
@@ -476,6 +501,8 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onRestore={(a) => handleRestore(a)}
                         onDelete={(a) => handleDeleteAsset(a)}
                         onModify={handleQuickModify}
+                        onApprove={handleApproveAsset}
+                        onReject={handleRejectAsset}
                         selectedIds={selectedIds}
                         onToggleAsset={toggleAsset}
                         onToggleGroup={toggleGroup}
@@ -490,6 +517,8 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onRestore={() => handleRestore(group[0])}
                         onDelete={() => handleDeleteAsset(group[0])}
                         onModify={handleQuickModify}
+                        onApprove={handleApproveAsset}
+                        onReject={handleRejectAsset}
                         selected={selectedIds.has(group[0].id)}
                         onToggleSelect={() => toggleAsset(group[0].id)}
                       />
@@ -559,7 +588,7 @@ function StatCard({ label, value, accent = 'text-slate-900', alert = false }) {
  * of the ten" to an employee is simply expanding and picking that
  * row — no special-cased partial-assignment logic needed anywhere).
  */
-function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onModify, selectedIds, onToggleAsset, onToggleGroup }) {
+function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onModify, onApprove, onReject, selectedIds, onToggleAsset, onToggleGroup }) {
   const [expanded, setExpanded] = useState(false);
   const first = group[0];
   const allSelected = group.every((a) => selectedIds.has(a.id));
@@ -602,6 +631,8 @@ function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, on
           onRestore={() => onRestore(a)}
           onDelete={() => onDelete(a)}
           onModify={onModify}
+          onApprove={onApprove}
+          onReject={onReject}
           selected={selectedIds.has(a.id)}
           onToggleSelect={() => onToggleAsset(a.id)}
         />
@@ -634,8 +665,8 @@ function AmcStatusCell({ asset: a }) {
   );
 }
 
-function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onModify, nested = false, selected = false, onToggleSelect }) {
-  const { canEdit } = useAuth();
+function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onModify, onApprove, onReject, nested = false, selected = false, onToggleSelect }) {
+  const { canEdit, isAdmin, canApprove } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const holderLabel = a.status === 'in_use' ? a.current_employee_name
     : a.status === 'under_repair' ? a.current_repair_vendor
@@ -680,6 +711,7 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
           </span>
         )}
         {a.category && <p className="text-xs text-slate-400">{a.category}</p>}
+        <ApprovalPanel item={a} canApprove={canApprove} onApprove={onApprove} onReject={onReject} />
       </td>
       <td className="px-4 py-3 text-slate-600">{a.vendor_name || '—'}</td>
       <td className="px-4 py-3 text-slate-600">{a.location || '—'}</td>
@@ -714,7 +746,7 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
           {a.status === 'retired' && canEdit && (
             <IconAction icon={RefreshCw} label="Restore to Available" onClick={onRestore} />
           )}
-          {canEdit && (
+          {isAdmin && (
             <button onClick={handleDeleteClick}
               title={confirmingDelete ? 'Click again to confirm — this cannot be undone' : 'Delete permanently'}
               className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${

@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { listEmployees, createEmployee, deactivateEmployee } from '../controllers/employeeController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { requireAdminOrEditor } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -14,6 +13,6 @@ router.post('/', asyncHandler(createEmployee));
 // wasn't. Not currently wired to any frontend UI (no live exploit path
 // through the app today), but fixed for consistency and to close the
 // gap before something does call it.
-router.patch('/:id/deactivate', requireAdminOrEditor, asyncHandler(deactivateEmployee));
+router.patch('/:id/deactivate', asyncHandler(deactivateEmployee));
 
 export default router;

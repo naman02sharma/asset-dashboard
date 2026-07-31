@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
     -- bulk-import. See middleware/auth.js's requireAdmin and each
     -- route file for exactly which endpoints are gated.
     role                VARCHAR(10) NOT NULL DEFAULT 'employee'
-                         CHECK (role IN ('admin', 'editor', 'employee')),
+                         CHECK (role IN ('admin', 'senior', 'employee')),
 
     -- Approval gate (see 013_user_approval.sql): the very first
     -- account (bootstrap admin) is approved automatically; every
@@ -73,7 +73,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(10) NOT NULL DEFAULT 'em
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_check') THEN
-        ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'editor', 'employee'));
+        ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'senior', 'employee'));
     END IF;
 END $$;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT TRUE;

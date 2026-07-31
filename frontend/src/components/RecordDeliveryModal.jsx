@@ -56,7 +56,7 @@ export default function RecordDeliveryModal({ purchase, onClose, onSubmit }) {
               <p className="text-xs text-slate-400">{purchase.item_name}</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} title="Close" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
         </div>

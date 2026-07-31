@@ -4,7 +4,7 @@ import { PieChart } from 'lucide-react';
 // A small, fixed palette cycled across departments — kept in the same
 // family as the rest of the app's accent colors (brand blue plus a
 // few complementary tones already used elsewhere: indigo for
-// department tags in the directory table, amber for editor, green for
+// department tags in the directory table, amber for senior, green for
 // active status) so this chart doesn't introduce a clashing palette.
 const SLICE_COLORS = [
   { fill: '#1C7E9E', label: 'bg-brand-600' },   // brand-600

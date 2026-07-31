@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { LogOut, Settings, Archive, Boxes, Users, Truck, Contact } from 'lucide-react';
+import { LogOut, Settings, Archive, Boxes, Users, Truck, Contact, MapPin } from 'lucide-react';
 import { api, getToken, clearToken } from './api/api.js';
 import { mockPurchases } from './mock/mockData.js';
 import logo from './assets/logo.png';
@@ -17,6 +17,7 @@ import AssetLifecyclePage from './components/AssetLifecyclePage.jsx';
 import GlobalSearch from './components/GlobalSearch.jsx';
 import Toast from './components/Toast.jsx';
 import ManageUsersModal from './components/ManageUsersModal.jsx';
+import LocationPosPage from './components/LocationPosPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 
 export default function App() {
@@ -78,7 +79,7 @@ function loadStoredViewState() {
     const raw = localStorage.getItem(VIEW_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!['dashboard', 'assets', 'vendors', 'employees'].includes(parsed?.view)) return null;
+    if (!['dashboard', 'assets', 'vendors', 'employees', 'locations'].includes(parsed?.view)) return null;
     return parsed;
   } catch {
     return null; // corrupt/foreign value — fall back to defaults below
@@ -100,6 +101,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
   // open on a different tab — the `token` bump gives it a changing
   // `key` for exactly that.
   const [assetsNav, setAssetsNav] = useState({ tab: storedViewState?.assetsTab || 'history', query: '', token: 0 });
+  const [locationsNav, setLocationsNav] = useState({ poQuery: '', token: 0 });
 
   // Keep the stored state in sync with whatever's on screen — cheap
   // enough to just re-write on every change rather than debouncing.
@@ -249,6 +251,33 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     }
   }
 
+  // Admin/senior approve or reject a pending purchase (see
+  // 018_asset_approval_workflow.sql / ApprovalStatusBadge.jsx). On
+  // approval the backend also backfills any deferred Inventory asset
+  // for an already-delivered purchase, so a full purchases reload
+  // picks that up too, not just this one row's own approval_status.
+  async function handleApprovePurchase(id) {
+    try {
+      const updated = await api.approvePurchase(id, true);
+      applyPurchaseUpdate(updated);
+      showToast('Purchase approved.');
+      loadSummary();
+    } catch (err) {
+      showToast(err.message || 'Could not approve this purchase.', 'error');
+    }
+  }
+
+  async function handleRejectPurchase(id, reason) {
+    try {
+      const updated = await api.approvePurchase(id, false, reason);
+      applyPurchaseUpdate(updated);
+      showToast('Purchase rejected.');
+      loadSummary();
+    } catch (err) {
+      showToast(err.message || 'Could not reject this purchase.', 'error');
+    }
+  }
+
   async function handleModifyAdvancePayment(id, amountPaid) {
     const updated = await api.updateAdvancePayment(id, amountPaid); // AdvancePaymentEditor shows its own error on throw
     applyPurchaseUpdate(updated); // no-op if this purchase isn't in the dashboard's own list (e.g. already delivered) — harmless
@@ -385,6 +414,10 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     setView('assets');
     setAssetsNav((n) => ({ tab: 'history', query: vendorName, token: n.token + 1 }));
   }
+  function handleGoToPoNumber(poNumber) {
+    setView('locations');
+    setLocationsNav((n) => ({ poQuery: poNumber, token: n.token + 1 }));
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
@@ -402,15 +435,16 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
               onGoToPurchase={handleGoToPurchase}
               onGoToAsset={handleGoToAsset}
               onGoToVendor={handleGoToVendor}
+              onGoToPoNumber={handleGoToPoNumber}
             />
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <div className="hidden items-center gap-1.5 sm:flex">
               <span className="text-sm text-slate-500">{user.name}</span>
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                user.role === 'admin' ? 'bg-brand-100 text-brand-700' : user.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                user.role === 'admin' ? 'bg-brand-100 text-brand-700' : user.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
               }`}>
-                {user.role === 'admin' ? 'Admin' : user.role === 'editor' ? 'Editor' : 'Employee'}
+                {user.role === 'admin' ? 'Admin' : user.role === 'senior' ? 'Senior' : 'Employee'}
               </span>
             </div>
             <button onClick={() => setView(view === 'assets' ? 'dashboard' : 'assets')}
@@ -426,6 +460,13 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                 view === 'vendors' ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
               }`}>
               <Truck size={16} />
+            </button>
+            <button onClick={() => setView(view === 'locations' ? 'dashboard' : 'locations')}
+              title="Location POs"
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                view === 'locations' ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}>
+              <MapPin size={16} />
             </button>
             {isAdmin && (
               <button onClick={() => setView(view === 'employees' ? 'dashboard' : 'employees')}
@@ -487,6 +528,13 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           onBack={() => setView('dashboard')}
           showToast={showToast}
         />
+      ) : view === 'locations' ? (
+        <LocationPosPage
+          key={locationsNav.token}
+          initialPoQuery={locationsNav.poQuery}
+          onBack={() => setView('dashboard')}
+          showToast={showToast}
+        />
       ) : (
         <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
           {usingMockData && (
@@ -529,6 +577,8 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
             onCompleteMaintenance={handleCompleteMaintenance}
             onRecordDelivery={handleRecordDelivery}
             onEditPurchase={handleUpdatePurchase}
+            onApprovePurchase={handleApprovePurchase}
+            onRejectPurchase={handleRejectPurchase}
           />
         </main>
       )}

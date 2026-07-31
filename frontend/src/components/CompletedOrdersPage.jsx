@@ -10,6 +10,7 @@ import OrderCalendarCard from './OrderCalendarCard.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
 import FilesCell from './FilesCell.jsx';
+import { ApprovalPanel } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const currency = (n) =>
@@ -69,6 +70,32 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
 
   function handleRowUpdated(updated) {
     setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
+  }
+
+  // A pending purchase can land here too (e.g. marked "Already
+  // Delivered" at creation, before a senior/admin has reviewed it —
+  // see 018_asset_approval_workflow.sql) — Order History is the only
+  // place it's visible once order_status is 'delivered', so approval
+  // has to be reachable from here, not just the active dashboard.
+  async function handleApprovePurchase(id) {
+    try {
+      const updated = await api.approvePurchase(id, true);
+      handleRowUpdated(updated);
+      showToast('Purchase approved.');
+      onSummaryChange?.();
+    } catch (err) {
+      showToast(err.message || 'Could not approve this purchase.', 'error');
+    }
+  }
+  async function handleRejectPurchase(id, reason) {
+    try {
+      const updated = await api.approvePurchase(id, false, reason);
+      handleRowUpdated(updated);
+      showToast('Purchase rejected.');
+      onSummaryChange?.();
+    } catch (err) {
+      showToast(err.message || 'Could not reject this purchase.', 'error');
+    }
   }
 
   // These mirror the equivalent handlers in App.jsx's Dashboard — this
@@ -206,6 +233,8 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
             onModifyAdvancePayment={onModifyAdvancePayment ? async (id, amt) => handleRowUpdated(await onModifyAdvancePayment(id, amt)) : null}
             onRecordDelivery={onRecordDelivery ? async (id, data) => handleRowUpdated(await onRecordDelivery(id, data)) : null}
             onEditPurchase={onEditPurchase ? async (id, form) => handleRowUpdated(await onEditPurchase(id, form)) : null}
+            onApprovePurchase={handleApprovePurchase}
+            onRejectPurchase={handleRejectPurchase}
             vendors={vendors}
             locations={locations}
             onUploadPhotos={handleUploadPhotos}
@@ -235,8 +264,8 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
   );
 }
 
-function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, onDelete, showToast, onModifyAdvancePayment, onRecordDelivery, onEditPurchase, vendors, locations, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile, onSummaryChange }) {
-  const { canEdit } = useAuth();
+function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, onDelete, showToast, onModifyAdvancePayment, onRecordDelivery, onEditPurchase, onApprovePurchase, onRejectPurchase, vendors, locations, onUploadPhotos, onUploadInvoices, onInsuranceToggle, onDeleteFile, onSummaryChange }) {
+  const { canEdit, isAdmin, canApprove } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -324,13 +353,17 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
           className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600">
           <History size={15} />
         </button>
-        {canEdit && (
+        {isAdmin && (
           <button onClick={handleDeleteClick}
             title="Delete permanently — this cannot be undone"
             className={`rounded-lg p-2 transition-colors ${confirmingDelete ? 'bg-red-600 text-white' : 'text-slate-300 hover:bg-red-50 hover:text-red-600'}`}>
             <Trash2 size={15} />
           </button>
         )}
+      </div>
+
+      <div className="px-4 pb-3">
+        <ApprovalPanel item={p} canApprove={canApprove} onApprove={onApprovePurchase} onReject={onRejectPurchase} />
       </div>
 
       {expanded && (

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, Package, Boxes, Building2, Loader2 } from 'lucide-react';
+import { Search, Package, Boxes, Building2, Loader2, Hash } from 'lucide-react';
 import { api } from '../api/api.js';
 
 /**
@@ -10,11 +10,11 @@ import { api } from '../api/api.js';
  * search box with the matched name, rather than trying to render
  * results inline here.
  */
-export default function GlobalSearch({ onGoToPurchase, onGoToAsset, onGoToVendor }) {
+export default function GlobalSearch({ onGoToPurchase, onGoToAsset, onGoToVendor, onGoToPoNumber }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState({ purchases: [], assets: [], vendors: [] });
+  const [results, setResults] = useState({ purchases: [], assets: [], vendors: [], poNumbers: [] });
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -28,25 +28,45 @@ export default function GlobalSearch({ onGoToPurchase, onGoToAsset, onGoToVendor
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
-      setResults({ purchases: [], assets: [], vendors: [] });
+      setResults({ purchases: [], assets: [], vendors: [], poNumbers: [] });
       setLoading(false);
       return;
     }
     setLoading(true);
     const t = setTimeout(async () => {
       const needle = trimmed.toLowerCase();
-      const [purchases, assets, vendors] = await Promise.all([
+      const [purchases, assets, vendors, poSearch] = await Promise.all([
         api.getPurchases({ q: trimmed }).catch(() => []),
         api.getAssets({ q: trimmed }).catch(() => []),
         api.getVendors().then((v) => v.filter((x) => x.name?.toLowerCase().includes(needle))).catch(() => []),
+        // Deliberately separate from the purchases/assets lookups
+        // above — those two are scoped to the dashboard's own
+        // filtering rules (e.g. delivered purchases drop off
+        // listPurchases entirely), while a PO number should surface
+        // its full details no matter what state it's in (see
+        // searchByPoNumber in purchaseController.js).
+        api.searchByPoNumber(trimmed).catch(() => ({ purchases: [], assets: [] })),
       ]);
-      setResults({ purchases: purchases.slice(0, 5), assets: assets.slice(0, 5), vendors: vendors.slice(0, 5) });
+      // Merge both sides of the PO match into one flat list of "PO
+      // number -> item name" pairs, deduplicated by po_number so a PO
+      // that's both an approved purchase AND its auto-linked
+      // Inventory asset doesn't show twice.
+      const seen = new Set();
+      const poNumbers = [...(poSearch.purchases || []), ...(poSearch.assets || [])]
+        .filter((row) => {
+          if (!row.po_number || seen.has(row.po_number)) return false;
+          seen.add(row.po_number);
+          return true;
+        })
+        .map((row) => ({ po_number: row.po_number, label: row.item_name || row.asset_name }));
+
+      setResults({ purchases: purchases.slice(0, 5), assets: assets.slice(0, 5), vendors: vendors.slice(0, 5), poNumbers: poNumbers.slice(0, 5) });
       setLoading(false);
     }, 300);
     return () => clearTimeout(t);
   }, [query]);
 
-  const hasResults = results.purchases.length || results.assets.length || results.vendors.length;
+  const hasResults = results.purchases.length || results.assets.length || results.vendors.length || results.poNumbers.length;
 
   function pick(fn, arg) {
     fn(arg);
@@ -77,6 +97,15 @@ export default function GlobalSearch({ onGoToPurchase, onGoToAsset, onGoToVendor
 
           {!loading && !hasResults && (
             <p className="px-2 py-4 text-center text-sm text-slate-400">No matches.</p>
+          )}
+
+          {!loading && results.poNumbers.length > 0 && (
+            <ResultGroup label="PO Numbers" icon={Hash}>
+              {results.poNumbers.map((r) => (
+                <ResultItem key={r.po_number} title={r.po_number} subtitle={r.label}
+                  onClick={() => pick(onGoToPoNumber, r.po_number)} />
+              ))}
+            </ResultGroup>
           )}
 
           {!loading && results.purchases.length > 0 && (

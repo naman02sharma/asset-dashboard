@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext.jsx';
  * so this never leaves the page stuck unscrollable.
  */
 export default function FileUploadModal({ label, icon: Icon = FileIcon, accept, hint, files, recordId, onUpload, onDelete, onClose }) {
-  const { canEdit } = useAuth();
+  const { isAdmin } = useAuth();
   const [dragOver, setDragOver] = useState(false);
   const [uploads, setUploads] = useState([]); // [{ name, progress, status: 'uploading'|'done'|'error', error? }]
   const [deleteError, setDeleteError] = useState('');
@@ -151,7 +151,7 @@ export default function FileUploadModal({ label, icon: Icon = FileIcon, accept, 
                       <FileIcon size={14} className="shrink-0 text-slate-400" />
                       <span className="truncate">{f.name || 'file'}</span>
                     </button>
-                    {canEdit && (
+                    {isAdmin && (
                       <button onClick={() => handleDelete(f.id)} title="Delete this file"
                         className="shrink-0 rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600 transition-colors">
                         <Trash2 size={14} />

@@ -98,11 +98,11 @@ export default function AdvancePaymentEditor({ purchase, onSave }) {
       )}
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
       <div className="mt-2 flex justify-end gap-1">
-        <button onClick={handleCancel} disabled={saving}
+        <button onClick={handleCancel} title="Cancel" disabled={saving}
           className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100">
           <X size={13} />
         </button>
-        <button onClick={handleSave} disabled={saving}
+        <button onClick={handleSave} disabled={saving} title="Save"
           className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60">
           {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={13} />}
         </button>

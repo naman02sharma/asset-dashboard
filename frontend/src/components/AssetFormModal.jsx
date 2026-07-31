@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { X, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
+import { api } from '../api/api.js';
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -11,7 +13,11 @@ const FIELD_CLASS =
  * this form doesn't need to know or do anything special about that.
  */
 export default function AssetFormModal({ mode = 'create', asset, vendors, locations, onClose, onSubmit }) {
+  const { user } = useAuth();
   const [form, setForm] = useState({
+    requested_by_name: mode === 'create' ? (user?.name || '') : '',
+    requested_by_phone: '',
+    po_number: asset?.po_number || '',
     asset_name: asset?.asset_name || '',
     category: asset?.category || '',
     serial_number: asset?.serial_number || '',
@@ -37,6 +43,33 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // --- PO number generation — create mode only (see AddPurchaseModal
+  // for the New Asset Purchase equivalent; both call the same backend
+  // preview endpoint, GET /purchases/next-po, so the two flows share
+  // the SAME global sequence). ---
+  const [poGenerating, setPoGenerating] = useState(false);
+  const [poLocationCode, setPoLocationCode] = useState('');
+  const [poGeneratedFor, setPoGeneratedFor] = useState('');
+
+  async function generatePoNumber(locationName) {
+    const trimmed = (locationName ?? form.location_name).trim();
+    if (!trimmed) {
+      setError('Enter a location first, then generate the PO number.');
+      return;
+    }
+    setPoGenerating(true);
+    try {
+      const result = await api.getNextPoNumber(trimmed);
+      setForm((f) => ({ ...f, po_number: result.po_number || '' }));
+      setPoLocationCode(result.location_code || '');
+      setPoGeneratedFor(trimmed);
+    } catch (err) {
+      setError(err.message || 'Could not generate a PO number.');
+    } finally {
+      setPoGenerating(false);
+    }
+  }
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -65,6 +98,25 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
     e.preventDefault();
     setError('');
 
+    if (mode === 'create') {
+      if (!form.requested_by_name.trim()) {
+        setError('Your name is required.');
+        return;
+      }
+      if (!form.requested_by_phone.trim()) {
+        setError('Your phone number is required.');
+        return;
+      }
+      if (!form.location_name.trim()) {
+        setError('Location is required.');
+        return;
+      }
+      if (!form.po_number || poGeneratedFor.toLowerCase() !== form.location_name.trim().toLowerCase()) {
+        setError('Click "Generate PO" for the current location before submitting.');
+        return;
+      }
+    }
+
     // Client-side mirror of the backend's AMC date-order check — catches
     // the mistake before a round trip instead of only after.
     if (form.amc_start_date && form.amc_end_date && form.amc_end_date < form.amc_start_date) {
@@ -88,10 +140,97 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
       <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl animate-[scaleIn_0.15s_ease-out]">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-slate-900">{mode === 'create' ? 'New Asset' : 'Edit Asset'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
 
         <form id="asset-form" onSubmit={handleSubmit} className="flex-1 space-y-3 overflow-y-auto px-6 py-4">
+          {/* --- Requester + location, asked FIRST (create mode only —
+              see AddPurchaseModal for the New Asset Purchase equivalent).
+              The PO number is built from the location below, so location
+              has to be entered before it can be generated. --- */}
+          {mode === 'create' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-500">Your name</label>
+                <input required className={FIELD_CLASS} value={form.requested_by_name}
+                  onChange={(e) => update('requested_by_name', e.target.value)} placeholder="Full name" title="Your name — required" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-500">Your phone number</label>
+                <input required type="tel" className={FIELD_CLASS} value={form.requested_by_phone}
+                  onChange={(e) => update('requested_by_phone', e.target.value)} placeholder="10-digit number" title="Your phone number — required" />
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <label className="mb-1 block text-xs font-medium text-slate-500">Location</label>
+            <input
+              required={mode === 'create'}
+              list="asset-location-suggestions"
+              className={FIELD_CLASS}
+              value={form.location_name}
+              onChange={(e) => update('location_name', e.target.value)}
+              onBlur={() => {
+                if (mode === 'create' && form.location_name.trim() && poGeneratedFor.toLowerCase() !== form.location_name.trim().toLowerCase()) generatePoNumber();
+              }}
+              placeholder="e.g. HO – 3rd Floor — new or existing"
+              title="Location — type an existing one or a new one"
+            />
+            {/* BUGFIX (uniformity audit): this field used to be plain
+                free text with no autocomplete at all — every other
+                location field in the app (Asset Purchase form's New/
+                Edit Purchase modals) suggests from the shared
+                locations list; `locations` simply wasn't being passed
+                down this far (App -> AssetLifecyclePage stopped at
+                CompletedOrdersPage, never reached InventoryPage). */}
+            <datalist id="asset-location-suggestions">
+              {locations?.map((l) => <option key={l.id} value={l.name} />)}
+            </datalist>
+            <button type="button" onClick={() => setShowLocationDetails((s) => !s)}
+              className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+              title="Optionally record this location's address and GST number">
+              {showLocationDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              Add location details
+            </button>
+            {showLocationDetails && (
+              <div className="mt-2 space-y-2">
+                <input className={FIELD_CLASS} value={form.location_address}
+                  onChange={(e) => update('location_address', e.target.value)} placeholder="Address" />
+                <input className={FIELD_CLASS} value={form.location_gst_number}
+                  onChange={(e) => update('location_gst_number', e.target.value)} placeholder="GST number" />
+              </div>
+            )}
+
+            {mode === 'create' && (
+              <>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="mb-1 block text-xs font-medium text-slate-500">PO number</label>
+                    <input readOnly className={`${FIELD_CLASS} bg-slate-100 font-mono text-slate-700`}
+                      value={form.po_number} placeholder="Generate from the location above"
+                      title="PO number — generated automatically from the location" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => generatePoNumber()}
+                    disabled={poGenerating || !form.location_name.trim()}
+                    title="Generate the PO number for this location"
+                    className="mt-5 flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                  >
+                    {poGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    Generate PO
+                  </button>
+                </div>
+                {poLocationCode && form.po_number && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Location code <span className="font-mono font-medium text-slate-700">{poLocationCode}</span> — this number is next in the global PO sequence.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Asset name</label>
             <input required className={FIELD_CLASS} value={form.asset_name}
@@ -111,46 +250,11 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Asset tag</label>
-              <input className={FIELD_CLASS} value={form.asset_tag}
-                onChange={(e) => update('asset_tag', e.target.value)} placeholder="e.g. IT-2026-014" />
-              <p className="mt-0.5 text-[11px] text-slate-400">Your own tracking code for physical tagging/scanning — must be unique.</p>
-            </div>
-            <div className="rounded-lg border border-slate-200 p-3">
-              <label className="mb-1 block text-xs font-medium text-slate-500">Location</label>
-              <input
-                list="asset-location-suggestions"
-                className={FIELD_CLASS}
-                value={form.location_name}
-                onChange={(e) => update('location_name', e.target.value)}
-                placeholder="e.g. HO – 3rd Floor — new or existing"
-              />
-              {/* BUGFIX (uniformity audit): this field used to be plain
-                  free text with no autocomplete at all — every other
-                  location field in the app (Asset Purchase form's New/
-                  Edit Purchase modals) suggests from the shared
-                  locations list; `locations` simply wasn't being passed
-                  down this far (App -> AssetLifecyclePage stopped at
-                  CompletedOrdersPage, never reached InventoryPage). */}
-              <datalist id="asset-location-suggestions">
-                {locations?.map((l) => <option key={l.id} value={l.name} />)}
-              </datalist>
-              <button type="button" onClick={() => setShowLocationDetails((s) => !s)}
-                className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
-                {showLocationDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                Add location details
-              </button>
-              {showLocationDetails && (
-                <div className="mt-2 space-y-2">
-                  <input className={FIELD_CLASS} value={form.location_address}
-                    onChange={(e) => update('location_address', e.target.value)} placeholder="Address" />
-                  <input className={FIELD_CLASS} value={form.location_gst_number}
-                    onChange={(e) => update('location_gst_number', e.target.value)} placeholder="GST number" />
-                </div>
-              )}
-            </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Asset tag</label>
+            <input className={FIELD_CLASS} value={form.asset_tag}
+              onChange={(e) => update('asset_tag', e.target.value)} placeholder="e.g. IT-2026-014" />
+            <p className="mt-0.5 text-[11px] text-slate-400">Your own tracking code for physical tagging/scanning — must be unique.</p>
           </div>
 
           <div className="rounded-lg border border-slate-200 p-3">

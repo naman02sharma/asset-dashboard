@@ -49,7 +49,7 @@ export default function MonthPurchasesModal({ month, label, onClose }) {
               {rows && <p className="text-xs text-slate-400">{rows.length} order{rows.length === 1 ? '' : 's'} · {currency(total)} total</p>}
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} title="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -76,7 +76,7 @@ export default function MonthPurchasesModal({ month, label, onClose }) {
         </div>
 
         <div className="flex justify-end border-t border-slate-100 px-5 py-3">
-          <button onClick={onClose} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
+          <button onClick={onClose} title="Close" className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
             Close
           </button>
         </div>

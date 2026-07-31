@@ -14,7 +14,7 @@ export default function DeleteConfirmModal({ purchase, onClose, onConfirm }) {
             <AlertTriangle size={18} className="text-amber-500" />
             <h2 className="text-base font-semibold">Delete this purchase?</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -51,7 +51,7 @@ export default function DeleteConfirmModal({ purchase, onClose, onConfirm }) {
           </button>
         </div>
 
-        <button onClick={onClose}
+        <button onClick={onClose} title="Close"
           className="mt-4 w-full rounded-lg py-2 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">
           Cancel
         </button>

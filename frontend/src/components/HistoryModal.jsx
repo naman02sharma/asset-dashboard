@@ -16,7 +16,7 @@ const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-di
  * reflects that window, it doesn't enforce it client-side.
  */
 export default function HistoryModal({ onClose, onChanged }) {
-  const { canEdit } = useAuth();
+  const { isAdmin } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -68,7 +68,7 @@ export default function HistoryModal({ onClose, onChanged }) {
             <Archive size={17} className="text-slate-400" />
             <h2 className="text-lg font-semibold text-slate-900">Deleted Items</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -92,7 +92,7 @@ export default function HistoryModal({ onClose, onChanged }) {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
-                  {canEdit ? (
+                  {isAdmin ? (
                     <>
                       <button
                         disabled={busyId === p.id}

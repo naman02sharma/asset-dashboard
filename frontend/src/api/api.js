@@ -255,6 +255,24 @@ export const api = {
   createVendor: (data) => request('/vendors', { method: 'POST', body: JSON.stringify(data) }),
   updateVendor: (id, data) => request(`/vendors/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getLocations: () => request('/locations'),
+  getLocationsOverview: () => request('/locations/overview'),
+  getLocationItems: (id) => request(`/locations/${id}/items`),
+
+  // "Generate PO" button (New Asset Purchase AND Inventory's New
+  // Asset) -- preview only, nothing is persisted until the actual
+  // create call happens with the returned po_number.
+  getNextPoNumber: (location) => request(`/purchases/next-po?location=${encodeURIComponent(location)}`),
+
+  // PO-number matches across BOTH purchases and assets -- powers the
+  // global search bar's "PO Numbers" group and the Location POs page.
+  searchByPoNumber: (q) => request(`/purchases/search-po?q=${encodeURIComponent(q)}`),
+
+  // Approve/reject a pending purchase or asset (admin/senior only --
+  // see requireAdminOrSenior). { approved: true|false, reason? }
+  approvePurchase: (id, approved, reason) =>
+    request(`/purchases/${id}/approve`, { method: 'PATCH', body: JSON.stringify({ approved, reason }) }),
+  approveAsset: (id, approved, reason) =>
+    request(`/assets/${id}/approve`, { method: 'PATCH', body: JSON.stringify({ approved, reason }) }),
 
   // --- Inventory & Asset Assignment module ---
   getAssetSummary: () => request('/assets/summary'),

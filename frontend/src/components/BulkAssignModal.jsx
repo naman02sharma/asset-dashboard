@@ -54,7 +54,7 @@ export default function BulkAssignModal({ assets, skippedCount = 0, employees, o
             <UserPlus size={16} className="text-brand-600" />
             <h2 className="text-lg font-semibold text-slate-900">Assign {assets.length} Assets</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <p className="mb-1 max-h-16 overflow-y-auto text-sm text-slate-500">
           {assets.map((a) => a.asset_tag || a.asset_name).join(', ')}

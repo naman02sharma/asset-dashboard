@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../config/db.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { requireAdminOrEditor } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -43,7 +42,7 @@ router.post('/', asyncHandler(async (req, res) => {
 // showed its Edit pencil to every user regardless of role, and this
 // route would have honored that request from a non-admin. Both sides
 // fixed together (see VendorManagementPage.jsx).
-router.patch('/:id', requireAdminOrEditor, asyncHandler(async (req, res) => {
+router.patch('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, website, contact_email, contact_phone, gst_number, address } = req.body;
   if (!name) return res.status(400).json({ error: 'Vendor name is required.' });

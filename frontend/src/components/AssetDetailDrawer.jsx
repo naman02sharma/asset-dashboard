@@ -70,7 +70,7 @@ export default function AssetDetailDrawer({ assetId, onClose, onEdit, showToast,
                 <Pencil size={14} />
               </button>
             )}
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
           </div>
         </div>
 

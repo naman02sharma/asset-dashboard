@@ -71,20 +71,21 @@ export function requireAdmin(req, res, next) {
 }
 
 /**
- * Gates operational edit/delete actions (purchases, inventory assets,
- * vendors, inventory holder records) to admins AND editors — the
- * three-role model's middle tier. Deliberately NOT used for anything
- * in routes/auth.js (user list, role/approval changes, CSV export of
- * employee data, the Employee Status/HR page's own endpoints) — those
- * stay admin-only via requireAdmin above, since granting an editor
- * visibility into HR data or the ability to change roles/approvals is
- * exactly what this role is designed to exclude. See
- * database/017_editor_role.sql for the three-way role CHECK
- * constraint this depends on.
+ * Gates the asset/purchase APPROVAL workflow (see
+ * database/018_asset_approval_workflow.sql) to admins and seniors —
+ * the only two roles allowed to approve or reject a pending purchase.
+ * Editing itself is deliberately NOT gated by this middleware anymore
+ * — 'senior' and plain 'employee' both get full edit rights on
+ * purchases/assets/vendors/inventory holders (just authenticateToken,
+ * no extra role check; see routes/purchases.js, assets.js, vendors.js,
+ * employees.js). What senior/employee do NOT get: deleting anything
+ * (stays admin-only via requireAdmin above) and the Employee Status/HR
+ * page or user role/approval management (routes/auth.js, also
+ * requireAdmin-only, untouched by this middleware).
  */
-export function requireAdminOrEditor(req, res, next) {
-  if (req.user?.role !== 'admin' && req.user?.role !== 'editor') {
-    return res.status(403).json({ error: 'This action requires an admin or editor account.' });
+export function requireAdminOrSenior(req, res, next) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'senior') {
+    return res.status(403).json({ error: 'This action requires an admin or senior account.' });
   }
   next();
 }

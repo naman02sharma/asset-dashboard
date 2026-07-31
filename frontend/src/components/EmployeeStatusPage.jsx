@@ -88,7 +88,7 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
     try {
       const updated = await api.updateUserRole(u.id, nextRole);
       setUsers((rows) => rows.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
-      const label = updated.role === 'admin' ? 'an admin' : updated.role === 'editor' ? 'an editor' : 'an employee';
+      const label = updated.role === 'admin' ? 'an admin' : updated.role === 'senior' ? 'a senior' : 'an employee';
       showToast(`${updated.name} is now ${label}.`);
     } catch (err) {
       showToast(err.message, 'error');
@@ -250,7 +250,7 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 focus:border-brand-500 focus:outline-none">
               <option value="">All roles</option>
               <option value="admin">Admin</option>
-              <option value="editor">Editor</option>
+              <option value="senior">Senior</option>
               <option value="employee">Employee</option>
             </select>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
@@ -286,9 +286,9 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                              u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'editor' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+                              u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'senior' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
                             }`}>
-                              {u.role === 'admin' ? <ShieldCheck size={14} /> : u.role === 'editor' ? <Pencil size={14} /> : <User size={14} />}
+                              {u.role === 'admin' ? <ShieldCheck size={14} /> : u.role === 'senior' ? <Pencil size={14} /> : <User size={14} />}
                             </span>
                             <div className="min-w-0">
                               <p className="truncate font-medium text-slate-800">{u.name}</p>
@@ -302,17 +302,17 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                               onChange={(e) => handleRoleChange(u, e.target.value)}
                               title="Change role"
                               className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                                u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                                u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                               }`}>
                               <option value="employee">Employee</option>
-                              <option value="editor">Editor</option>
+                              <option value="senior">Senior</option>
                               <option value="admin">Admin</option>
                             </select>
                           ) : (
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                              u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                             }`}>
-                              {u.role === 'admin' ? 'Admin' : u.role === 'editor' ? 'Editor' : 'Employee'}
+                              {u.role === 'admin' ? 'Admin' : u.role === 'senior' ? 'Senior' : 'Employee'}
                             </span>
                           )}
                         </td>
@@ -370,7 +370,7 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                                   className="flex h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
                                   {savingId === u.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={13} />}
                                 </button>
-                                <button onClick={cancelEdit} disabled={savingId === u.id}
+                                <button onClick={cancelEdit} title="Cancel" disabled={savingId === u.id}
                                   className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100">
                                   <X size={13} />
                                 </button>
@@ -416,9 +416,9 @@ function HierarchyNode({ user, childrenOf, depth }) {
     <li>
       <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50" style={{ marginLeft: depth * 28 }}>
         <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-          user.role === 'admin' ? 'bg-brand-50 text-brand-600' : user.role === 'editor' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+          user.role === 'admin' ? 'bg-brand-50 text-brand-600' : user.role === 'senior' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
         }`}>
-          {user.role === 'admin' ? <ShieldCheck size={13} /> : user.role === 'editor' ? <Pencil size={13} /> : <User size={13} />}
+          {user.role === 'admin' ? <ShieldCheck size={13} /> : user.role === 'senior' ? <Pencil size={13} /> : <User size={13} />}
         </span>
         <div className="min-w-0">
           <span className="text-sm font-medium text-slate-800">{user.name}</span>

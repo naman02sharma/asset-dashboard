@@ -44,7 +44,8 @@ CREATE TABLE locations (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(150) NOT NULL,        -- e.g. "Mumbai HQ", "Warehouse B"
     address         TEXT,
-    gst_number      VARCHAR(20)
+    gst_number      VARCHAR(20),
+    code            VARCHAR(3) UNIQUE             -- 3-letter PO-number prefix, e.g. "KOL" for Kolkata (see 019_po_number_generator.sql)
 );
 
 -- ---------------------------------------------------------------------
@@ -117,7 +118,21 @@ CREATE TABLE purchases (
     -- table, and a hat bought from the same vendor at once). NULL for
     -- every single-item purchase — nothing about how an individual row
     -- is tracked afterward changes because of this column.
-    purchase_order_id       UUID
+    purchase_order_id       UUID,
+
+    -- Approval workflow (see 018_asset_approval_workflow.sql): nobody
+    -- is auto-approved, every new purchase starts 'pending' regardless
+    -- of who created it. requested_by_name/phone come from the
+    -- creation form itself (may differ from created_by's account on a
+    -- shared login); created_by/approved_by are the actual accounts.
+    approval_status          VARCHAR(10) NOT NULL DEFAULT 'pending'
+                              CHECK (approval_status IN ('pending', 'approved', 'rejected')),
+    created_by                UUID REFERENCES users(id) ON DELETE SET NULL,
+    requested_by_name         VARCHAR(150),
+    requested_by_phone        VARCHAR(30),
+    approved_by                UUID REFERENCES users(id) ON DELETE SET NULL,
+    approved_at                TIMESTAMPTZ,
+    rejection_reason           TEXT
 );
 
 CREATE INDEX idx_purchases_archived_at ON purchases(archived_at);
@@ -298,10 +313,23 @@ SELECT
     p.po_number,
     p.delivered_quantity,
     p.created_at,
-    p.purchase_order_id
+    p.purchase_order_id,
+    p.approval_status,
+    p.created_by,
+    cu.name                             AS created_by_name,
+    p.requested_by_name,
+    p.requested_by_phone,
+    p.approved_by,
+    au.name                             AS approved_by_name,
+    p.approved_at,
+    p.rejection_reason,
+    p.delivery_location_id,
+    l.code                              AS delivery_location_code
 FROM purchases p
 JOIN vendors v ON v.id = p.vendor_id
 LEFT JOIN locations l ON l.id = p.delivery_location_id
+LEFT JOIN users cu ON cu.id = p.created_by
+LEFT JOIN users au ON au.id = p.approved_by
 LEFT JOIN (
     SELECT purchase_id, SUM(amount) AS amount_paid
     FROM payments
@@ -355,7 +383,32 @@ CREATE TABLE assets (
         amc_start_date IS NULL OR amc_end_date IS NULL OR amc_end_date >= amc_start_date
     ),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Approval workflow (see 018_asset_approval_workflow.sql) — only
+    -- relevant to an asset created directly via "New Asset" in
+    -- Inventory Management; an asset auto-created from an already-
+    -- approved purchase is inserted as 'approved' directly (see
+    -- assetController.ensureAssetFromPurchase), since the purchase it
+    -- came from already passed its own review.
+    approval_status     VARCHAR(10) NOT NULL DEFAULT 'pending'
+                         CHECK (approval_status IN ('pending', 'approved', 'rejected')),
+    created_by           UUID REFERENCES users(id) ON DELETE SET NULL,
+    requested_by_name    VARCHAR(150),
+    requested_by_phone   VARCHAR(30),
+    approved_by           UUID REFERENCES users(id) ON DELETE SET NULL,
+    approved_at            TIMESTAMPTZ,
+    rejection_reason        TEXT,
+
+    -- Location FK + PO number (see 019_po_number_generator.sql) --
+    -- location_id is the real link used by the location-based PO
+    -- browsing page and PO code lookups; the free-text `location`
+    -- column above stays as-is for display. po_number is set either
+    -- by the "Generate PO" button (standalone New Asset) or copied
+    -- from the originating purchase (asset auto-linked via
+    -- ensureAssetFromPurchase).
+    location_id           UUID REFERENCES locations(id) ON DELETE SET NULL,
+    po_number              VARCHAR(50)
 );
 
 CREATE INDEX idx_assets_status ON assets(status);
@@ -464,10 +517,25 @@ SELECT
     CASE
         WHEN a.useful_life_years IS NULL OR a.purchase_date IS NULL OR a.cost IS NULL THEN NULL
         ELSE GREATEST(0, ROUND(a.cost - (a.cost / (a.useful_life_years * 365.25)) * (CURRENT_DATE - a.purchase_date), 2))
-    END AS current_book_value
+    END AS current_book_value,
+    a.approval_status,
+    a.created_by,
+    cu.name                             AS created_by_name,
+    a.requested_by_name,
+    a.requested_by_phone,
+    a.approved_by,
+    au.name                             AS approved_by_name,
+    a.approved_at,
+    a.rejection_reason,
+    a.location_id,
+    loc.code                            AS location_code,
+    a.po_number
 FROM assets a
 LEFT JOIN vendors v ON v.id = a.vendor_id
 LEFT JOIN asset_holdings h ON h.asset_id = a.id AND h.returned_at IS NULL
+LEFT JOIN users cu ON cu.id = a.created_by
+LEFT JOIN users au ON au.id = a.approved_by
+LEFT JOIN locations loc ON loc.id = a.location_id
 LEFT JOIN (
     SELECT
         asset_id,

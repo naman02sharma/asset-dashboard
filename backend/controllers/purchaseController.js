@@ -19,6 +19,7 @@ import { applyStatusUpdate } from '../services/trackingService.js';
 import { publicPathFor, processAndSaveFile, UPLOAD_ROOT } from '../middleware/upload.js';
 import { sendCsv } from '../utils/csv.js';
 import { ensureAssetFromPurchase, deleteAssetsForPurchase } from './assetController.js';
+import { generateUniqueLocationCode, previewNextPoNumber } from '../utils/poNumber.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -345,9 +346,10 @@ async function findOrCreateLocation(name, { address, gst_number } = {}) {
     return id;
   }
 
+  const code = await generateUniqueLocationCode(trimmed);
   const created = await pool.query(
-    `INSERT INTO locations (name, address, gst_number) VALUES ($1::text,$2::text,$3::text) RETURNING id`,
-    [trimmed, address || null, gst_number || null]
+    `INSERT INTO locations (name, address, gst_number, code) VALUES ($1::text,$2::text,$3::text,$4::text) RETURNING id`,
+    [trimmed, address || null, gst_number || null, code]
   );
   return created.rows[0].id;
 }
@@ -362,6 +364,50 @@ async function findOrCreateLocation(name, { address, gst_number } = {}) {
  * is deliberate: a failed file upload should never roll back an
  * otherwise-successful purchase creation.
  */
+/**
+ * GET /api/purchases/next-po?location=<name>
+ * Powers the "Generate PO" button on both creation forms (New Asset
+ * Purchase on the dashboard AND Inventory's New Asset — see
+ * utils/poNumber.js for the actual derivation). Accepts any
+ * authenticated user (employee/senior/admin all create purchases and
+ * assets), doesn't require an admin/senior role. Preview only —
+ * nothing is written to the database by this endpoint; the number
+ * only becomes real once the purchase/asset is actually submitted
+ * with it as po_number.
+ */
+export async function getNextPoNumber(req, res) {
+  const { location } = req.query;
+  if (!location || !location.trim()) {
+    return res.status(400).json({ error: 'location is required.' });
+  }
+  const result = await previewNextPoNumber(location);
+  res.json(result);
+}
+
+/**
+ * GET /api/purchases/search-po?q=<partial or full po_number>
+ * Powers PO-number matches in the global search bar (see
+ * GlobalSearch.jsx) and the "Location POs" page's own PO search.
+ * Deliberately spans BOTH purchases AND assets (a standalone
+ * Inventory "New Asset" has its own po_number, independent of the
+ * purchases table — see 019_po_number_generator.sql) and, unlike
+ * listPurchases, is NOT restricted to non-archived/non-delivered rows
+ * — a searched PO number should surface its full details regardless
+ * of where that purchase currently sits in its lifecycle.
+ */
+export async function searchByPoNumber(req, res) {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json({ purchases: [], assets: [] });
+  const needle = `%${q.trim()}%`;
+
+  const [purchaseRows, assetRows] = await Promise.all([
+    pool.query(`SELECT * FROM purchase_summary WHERE po_number ILIKE $1::text ORDER BY created_at DESC LIMIT 20`, [needle]),
+    pool.query(`SELECT * FROM asset_summary WHERE po_number ILIKE $1::text ORDER BY created_at DESC LIMIT 20`, [needle]),
+  ]);
+
+  res.json({ purchases: purchaseRows.rows, assets: assetRows.rows });
+}
+
 export async function createPurchase(req, res) {
   const {
     item_name, po_number, description, vendor_name, vendor_gst_number, vendor_address, vendor_phone,
@@ -370,10 +416,17 @@ export async function createPurchase(req, res) {
     location_name, location_address, location_gst_number,
     courier_name, tracking_number,
     is_delivered,
+    requested_by_name, requested_by_phone,
   } = req.body;
 
   if (!item_name || !vendor_name || !quantity || unit_cost == null) {
     return res.status(400).json({ error: 'item_name, vendor_name, quantity, and unit_cost are required.' });
+  }
+  if (!requested_by_name || !requested_by_name.trim()) {
+    return res.status(400).json({ error: "Requester's name is required." });
+  }
+  if (!requested_by_phone || !requested_by_phone.trim()) {
+    return res.status(400).json({ error: "Requester's phone number is required." });
   }
   const parsedQuantity = parseInt(quantity, 10);
   const parsedUnitCost = parseAmount(unit_cost);
@@ -394,14 +447,16 @@ export async function createPurchase(req, res) {
   const { rows } = await pool.query(
     `INSERT INTO purchases
       (item_name, po_number, description, vendor_id, quantity, unit_cost,
-       order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number, order_status, delivered_quantity, actual_delivery_date)
-     VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date)
+       order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number, order_status, delivered_quantity, actual_delivery_date,
+       approval_status, created_by, requested_by_name, requested_by_phone)
+     VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date,'pending',$15::uuid,$16::text,$17::text)
      RETURNING id`,
     [item_name, po_number || null, description || null, vendorId, parsedQuantity, parsedUnitCost,
      nullIfEmpty(order_date), nullIfEmpty(expected_delivery_date), nullIfEmpty(locationId), courier_name || null, tracking_number || null,
      is_delivered ? 'delivered' : 'ordered',
      is_delivered ? parsedQuantity : 0,
-     is_delivered ? (nullIfEmpty(order_date) || todayStamp()) : null]
+     is_delivered ? (nullIfEmpty(order_date) || todayStamp()) : null,
+     req.user?.id || null, requested_by_name.trim(), requested_by_phone.trim()]
   );
   const purchaseId = rows[0].id;
 
@@ -458,10 +513,17 @@ export async function createPurchaseOrder(req, res) {
     delivery_location_id, location_name, location_address, location_gst_number,
     order_date, expected_delivery_date, courier_name, tracking_number,
     is_delivered, items,
+    requested_by_name, requested_by_phone,
   } = req.body;
 
   if (!vendor_name || !vendor_name.trim()) {
     return res.status(400).json({ error: 'vendor_name is required.' });
+  }
+  if (!requested_by_name || !requested_by_name.trim()) {
+    return res.status(400).json({ error: "Requester's name is required." });
+  }
+  if (!requested_by_phone || !requested_by_phone.trim()) {
+    return res.status(400).json({ error: "Requester's phone number is required." });
   }
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'At least one line item is required.' });
@@ -515,15 +577,17 @@ export async function createPurchaseOrder(req, res) {
       `INSERT INTO purchases
         (item_name, po_number, description, vendor_id, quantity, unit_cost,
          order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number,
-         order_status, delivered_quantity, actual_delivery_date, purchase_order_id)
-       VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date,$15::uuid)
+         order_status, delivered_quantity, actual_delivery_date, purchase_order_id,
+         approval_status, created_by, requested_by_name, requested_by_phone)
+       VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date,$15::uuid,'pending',$16::uuid,$17::text,$18::text)
        RETURNING id`,
       [item.item_name, item.po_number, item.description, vendorId, item.quantity, item.unit_cost,
        nullIfEmpty(order_date), nullIfEmpty(expected_delivery_date), nullIfEmpty(locationId), courier_name || null, tracking_number || null,
        is_delivered ? 'delivered' : 'ordered',
        is_delivered ? item.quantity : 0,
        is_delivered ? (nullIfEmpty(order_date) || todayStamp()) : null,
-       purchaseOrderId]
+       purchaseOrderId,
+       req.user?.id || null, requested_by_name.trim(), requested_by_phone.trim()]
     );
     const purchaseId = rows[0].id;
     createdIds.push(purchaseId);
@@ -552,6 +616,59 @@ export async function createPurchaseOrder(req, res) {
   }
 
   res.status(201).json({ purchase_order_id: purchaseOrderId, items: fullRows });
+}
+
+/**
+ * PATCH /api/purchases/:id/approve — admin-or-senior review gate for a
+ * pending purchase (see 018_asset_approval_workflow.sql). Mirrors
+ * assetController's approveAsset field-for-field: validates `approved`
+ * is a boolean, rejects if the purchase isn't currently 'pending' (so
+ * a decision can't be made twice), then records who decided and when.
+ *
+ * On approval, ALSO re-fetches the now-approved row from
+ * purchase_summary and calls ensureAssetFromPurchase on it. This is
+ * necessary because every call site that could have auto-created an
+ * Inventory asset at creation/delivery time (createPurchase,
+ * createPurchaseOrder, recordPartialDelivery, trackingService) ran
+ * while the purchase was still 'pending' — ensureAssetFromPurchase's
+ * own guard clause no-ops on anything not yet approved, so those
+ * assets were deliberately deferred rather than created. Approval is
+ * what finally lets them through; without this backfill call, an
+ * already-delivered purchase that gets approved would sit approved
+ * forever without ever reaching Inventory.
+ */
+export async function approvePurchase(req, res) {
+  const { id } = req.params;
+  const { approved, reason } = req.body;
+
+  if (typeof approved !== 'boolean') {
+    return res.status(400).json({ error: 'approved must be true or false.' });
+  }
+
+  const { rows: existing } = await pool.query(`SELECT id, approval_status FROM purchases WHERE id = $1::uuid`, [id]);
+  if (!existing.length) return res.status(404).json({ error: 'Purchase not found.' });
+  if (existing[0].approval_status !== 'pending') {
+    return res.status(400).json({ error: `This purchase was already ${existing[0].approval_status}.` });
+  }
+
+  await pool.query(
+    `UPDATE purchases
+     SET approval_status = $1::text, approved_by = $2::uuid, approved_at = now(), rejection_reason = $3::text
+     WHERE id = $4::uuid`,
+    [approved ? 'approved' : 'rejected', req.user?.id || null, approved ? null : (reason || null), id]
+  );
+
+  const { rows: full } = await pool.query(`SELECT * FROM purchase_summary WHERE id = $1::uuid`, [id]);
+
+  if (approved && full.length) {
+    try {
+      await ensureAssetFromPurchase(full[0]);
+    } catch (err) {
+      console.error('Auto-link to Inventory failed for approvePurchase', id, err);
+    }
+  }
+
+  res.json(full[0]);
 }
 
 // Fields eligible for change-log tracking on a general edit —

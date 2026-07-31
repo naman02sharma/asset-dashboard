@@ -7,6 +7,7 @@ import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
 import { SkeletonTableRows } from './Skeleton.jsx';
+import { ApprovalPanel } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const currency = (n) =>
@@ -48,8 +49,9 @@ export default function PurchaseTable({
   onStatusChange, onDeleteClick,
   onInsuranceToggle, onUploadPhotos, onUploadInvoices, onDeleteFile,
   onModifyAdvancePayment, onCompleteMaintenance, onRecordDelivery, onEditPurchase,
+  onApprovePurchase, onRejectPurchase,
 }) {
-  const { canEdit } = useAuth();
+  const { canEdit, isAdmin, canApprove } = useAuth();
   const [sortBy, sortDir] = sort.split(':');
   const [updatingId, setUpdatingId] = useState(null);
   const [completingId, setCompletingId] = useState(null);
@@ -140,6 +142,7 @@ export default function PurchaseTable({
                       )}
                     </div>
                     {p.description && <p className="text-xs text-slate-400 line-clamp-1">{p.description}</p>}
+                    <ApprovalPanel item={p} canApprove={canApprove} onApprove={onApprovePurchase} onReject={onRejectPurchase} />
                   </td>
                   <td className="px-5 py-4 text-slate-500">{p.po_number || '—'}</td>
                   <td className="px-5 py-4 text-slate-600">{p.vendor_name}</td>
@@ -240,7 +243,7 @@ export default function PurchaseTable({
                           <Pencil size={15} />
                         </button>
                       )}
-                      {canEdit && (
+                      {isAdmin && (
                         <button
                           onClick={() => onDeleteClick(p)}
                           title="Delete purchase"

@@ -432,11 +432,11 @@ export async function updateUserRole(req, res) {
   const { id } = req.params;
   const { role } = req.body;
 
-  if (!['admin', 'editor', 'employee'].includes(role)) {
-    return res.status(400).json({ error: 'role must be "admin", "editor", or "employee".' });
+  if (!['admin', 'senior', 'employee'].includes(role)) {
+    return res.status(400).json({ error: 'role must be "admin", "senior", or "employee".' });
   }
 
-  // Any change AWAY from admin (to editor or employee) needs this
+  // Any change AWAY from admin (to senior or employee) needs this
   // guard — not just the admin->employee case — since either one
   // would otherwise be able to leave the app with zero admins left.
   if (role !== 'admin') {

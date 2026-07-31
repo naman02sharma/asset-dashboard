@@ -27,6 +27,7 @@ import { pool } from '../config/db.js';
 import { findOrCreateEmployee } from './employeeController.js';
 import { publicPathFor, processAndSaveFile, UPLOAD_ROOT } from '../middleware/upload.js';
 import { sendCsv, parseCsv } from '../utils/csv.js';
+import { generateUniqueLocationCode } from '../utils/poNumber.js';
 import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
@@ -89,9 +90,10 @@ async function findOrCreateLocation(name, { address, gst_number } = {}) {
     }
     return id;
   }
+  const code = await generateUniqueLocationCode(trimmed);
   const created = await pool.query(
-    `INSERT INTO locations (name, address, gst_number) VALUES ($1::text, $2::text, $3::text) RETURNING id`,
-    [trimmed, address || null, gst_number || null]
+    `INSERT INTO locations (name, address, gst_number, code) VALUES ($1::text, $2::text, $3::text, $4::text) RETURNING id`,
+    [trimmed, address || null, gst_number || null, code]
   );
   return created.rows[0].id;
 }
@@ -130,6 +132,18 @@ async function findOrCreateLocation(name, { address, gst_number } = {}) {
  */
 export async function ensureAssetFromPurchase(purchase, unitsToCreate = null) {
   if (!purchase?.id) return [];
+
+  // Approval workflow guard (018_asset_approval_workflow.sql): a
+  // purchase that hasn't been approved yet never gets auto-linked
+  // into Inventory, no matter which of the four call sites (create,
+  // batch create, partial delivery, courier status update) got here —
+  // this single choke point is safer than gating each caller
+  // separately. Once approvePurchase actually approves it, it
+  // re-fetches the row and calls this function again itself, which
+  // then proceeds normally (and is naturally idempotent/incremental,
+  // so it only ever creates the units that were deferred, never
+  // duplicates).
+  if (purchase.approval_status && purchase.approval_status !== 'approved') return [];
 
   // BUGFIX (Step 4 — bulk order + partial delivery + inventory delete):
   // the unit number baked into each auto-generated Asset Tag
@@ -176,8 +190,8 @@ export async function ensureAssetFromPurchase(purchase, unitsToCreate = null) {
     const unitNumber = maxUnitIssued + i; // never reuses a tag number still held by a surviving sibling unit
     const autoTag = totalQuantity > 1 ? `PO-${purchaseRef}-${String(unitNumber).padStart(2, '0')}` : null;
     const { rows } = await pool.query(
-      `INSERT INTO assets (asset_name, purchase_id, vendor_id, purchase_date, cost, asset_tag)
-       VALUES ($1::text, $2::uuid, $3::uuid, $4::date, $5::numeric, $6::text)
+      `INSERT INTO assets (asset_name, purchase_id, vendor_id, purchase_date, cost, asset_tag, approval_status, created_by, approved_by, approved_at, po_number, location, location_id)
+       VALUES ($1::text, $2::uuid, $3::uuid, $4::date, $5::numeric, $6::text, 'approved', $7::uuid, $8::uuid, now(), $9::text, $10::text, $11::uuid)
        RETURNING id`,
       [
         purchase.item_name,
@@ -186,6 +200,11 @@ export async function ensureAssetFromPurchase(purchase, unitsToCreate = null) {
         purchase.actual_delivery_date || purchase.order_date || null,
         unitCost,
         autoTag,
+        purchase.created_by || null,
+        purchase.approved_by || null,
+        purchase.po_number || null,
+        purchase.delivery_location || null,
+        purchase.delivery_location_id || null,
       ]
     );
     insertedIds.push(rows[0].id);
@@ -459,10 +478,17 @@ export async function createAsset(req, res) {
     asset_name, category, serial_number, asset_tag, location_name, location_address, location_gst_number, vendor_name, vendor_gst_number, vendor_address, vendor_phone,
     purchase_date, cost, warranty_expiry, useful_life_years,
     amc_provider, amc_start_date, amc_end_date, amc_cost,
+    requested_by_name, requested_by_phone, po_number,
   } = req.body;
 
   if (!asset_name || !asset_name.trim()) {
     return res.status(400).json({ error: 'Asset name is required.' });
+  }
+  if (!requested_by_name || !requested_by_name.trim()) {
+    return res.status(400).json({ error: "Requester's name is required." });
+  }
+  if (!requested_by_phone || !requested_by_phone.trim()) {
+    return res.status(400).json({ error: "Requester's phone number is required." });
   }
 
   const parsedCost = parseAmount(cost);
@@ -494,12 +520,13 @@ export async function createAsset(req, res) {
     ({ rows } = await pool.query(
       `INSERT INTO assets
         (asset_name, category, serial_number, asset_tag, location, location_id, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
-         amc_provider, amc_start_date, amc_end_date, amc_cost)
-       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::uuid,$7::uuid,$8::date,$9::numeric,$10::date,$11::int,$12::text,$13::date,$14::date,$15::numeric)
+         amc_provider, amc_start_date, amc_end_date, amc_cost, approval_status, created_by, requested_by_name, requested_by_phone, po_number)
+       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::uuid,$7::uuid,$8::date,$9::numeric,$10::date,$11::int,$12::text,$13::date,$14::date,$15::numeric,'pending',$16::uuid,$17::text,$18::text,$19::text)
        RETURNING id`,
       [asset_name.trim(), category || null, serial_number || null, nullIfEmpty(asset_tag), location_name || null, locationId, vendorId,
        nullIfEmpty(purchase_date), parsedCost, nullIfEmpty(warranty_expiry), parsedUsefulLife,
-       amc_provider || null, nullIfEmpty(amc_start_date), nullIfEmpty(amc_end_date), parsedAmcCost]
+       amc_provider || null, nullIfEmpty(amc_start_date), nullIfEmpty(amc_end_date), parsedAmcCost,
+       req.user?.id || null, requested_by_name.trim(), requested_by_phone.trim(), nullIfEmpty(po_number)]
     ));
   } catch (err) {
     if (err.code === '23505' && err.constraint === 'assets_asset_tag_key') {
@@ -510,6 +537,39 @@ export async function createAsset(req, res) {
 
   const { rows: full } = await pool.query(`SELECT * FROM asset_summary WHERE id = $1::uuid`, [rows[0].id]);
   res.status(201).json(full[0]);
+}
+
+/**
+ * PATCH /api/assets/:id/approve — { approved: true|false, reason? }
+ * Admin/senior-only (see requireAdminOrSenior in middleware/auth.js).
+ * Only meaningful for an asset created directly via "New Asset" here
+ * in Inventory — an asset auto-linked from an already-approved
+ * purchase is inserted pre-approved (see ensureAssetFromPurchase) and
+ * never reaches this endpoint in a 'pending' state.
+ */
+export async function approveAsset(req, res) {
+  const { id } = req.params;
+  const { approved, reason } = req.body;
+
+  if (typeof approved !== 'boolean') {
+    return res.status(400).json({ error: 'approved must be true or false.' });
+  }
+
+  const { rows: existing } = await pool.query(`SELECT id, approval_status FROM assets WHERE id = $1::uuid`, [id]);
+  if (!existing.length) return res.status(404).json({ error: 'Asset not found.' });
+  if (existing[0].approval_status !== 'pending') {
+    return res.status(400).json({ error: `This asset was already ${existing[0].approval_status}.` });
+  }
+
+  await pool.query(
+    `UPDATE assets
+     SET approval_status = $1::text, approved_by = $2::uuid, approved_at = now(), rejection_reason = $3::text
+     WHERE id = $4::uuid`,
+    [approved ? 'approved' : 'rejected', req.user?.id || null, approved ? null : (reason || null), id]
+  );
+
+  const { rows: full } = await pool.query(`SELECT * FROM asset_summary WHERE id = $1::uuid`, [id]);
+  res.json(full[0]);
 }
 
 // Fields eligible for change-log tracking on update — deliberately a

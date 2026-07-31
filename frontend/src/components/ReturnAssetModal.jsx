@@ -68,7 +68,7 @@ export default function ReturnAssetModal({ asset, onClose, onSubmit }) {
           <h2 className="text-lg font-semibold text-slate-900">
             {isFromRepair ? 'Return from Maintenance' : 'Return Asset'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <p className="mb-4 text-sm text-slate-500">
           {asset.asset_name}

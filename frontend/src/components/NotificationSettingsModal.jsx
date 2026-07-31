@@ -36,7 +36,7 @@ export default function NotificationSettingsModal({ user, onClose, onSaved }) {
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Notification Settings</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSave} className="space-y-3">

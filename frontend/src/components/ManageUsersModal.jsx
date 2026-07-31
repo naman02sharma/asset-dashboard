@@ -15,11 +15,13 @@ import { useAuth } from '../context/AuthContext.jsx';
  *     daily cron after PENDING_USER_EXPIRY_DAYS (see
  *     trackingService.purgeStaleUnapprovedUsers) — this button is the
  *     immediate, manual version of that same cleanup.
- *   - Change role among 'employee' / 'editor' / 'admin' for already-
- *     approved accounts. 'editor' gets the same edit/delete rights as
- *     admin on purchases/assets/vendors/inventory holders, but never
- *     sees the Employee Status (HR) page or this Manage Users panel's
- *     own actions — see requireAdminOrEditor in middleware/auth.js.
+ *   - Change role among 'employee' / 'senior' / 'admin' for already-
+ *     approved accounts. Editing purchases/assets/vendors/inventory
+ *     holders is open to all three roles equally now — 'senior' only
+ *     adds the ability to approve/reject pending purchases alongside
+ *     admin (see requireAdminOrSenior in middleware/auth.js). Neither
+ *     senior nor employee ever sees the Employee Status (HR) page or
+ *     this Manage Users panel's own actions.
  *     The backend refuses to move the last remaining admin away from
  *     'admin' (updateUserRole) or revoke your own access
  *     (updateUserApproval), so neither can accidentally lock everyone
@@ -56,7 +58,7 @@ export default function ManageUsersModal({ onClose, showToast }) {
     try {
       const updated = await api.updateUserRole(u.id, nextRole);
       setUsers((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
-      const label = updated.role === 'admin' ? 'an admin' : updated.role === 'editor' ? 'an editor' : 'an employee';
+      const label = updated.role === 'admin' ? 'an admin' : updated.role === 'senior' ? 'a senior' : 'an employee';
       showToast(`${updated.name} is now ${label}.`);
     } catch (err) {
       showToast(err.message, 'error');
@@ -121,7 +123,7 @@ export default function ManageUsersModal({ onClose, showToast }) {
             </span>
             <h2 className="text-base font-semibold text-slate-900">Manage Users</h2>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} title="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -185,7 +187,7 @@ export default function ManageUsersModal({ onClose, showToast }) {
                     <li key={u.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'editor' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+                          u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'senior' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
                         }`}>
                           {u.role === 'admin' ? <ShieldCheck size={14} /> : <User size={14} />}
                         </span>
@@ -203,11 +205,11 @@ export default function ManageUsersModal({ onClose, showToast }) {
                           onChange={(e) => handleRoleChange(u, e.target.value)}
                           title="Change role"
                           className={`rounded-full border-0 px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                            u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'editor' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                            u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                           }`}
                         >
                           <option value="employee">Employee</option>
-                          <option value="editor">Editor</option>
+                          <option value="senior">Senior</option>
                           <option value="admin">Admin</option>
                         </select>
                         {u.id !== currentUser.id && (
@@ -230,7 +232,7 @@ export default function ManageUsersModal({ onClose, showToast }) {
         </div>
 
         <div className="flex justify-end border-t border-slate-100 px-5 py-3">
-          <button onClick={onClose} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
+          <button onClick={onClose} title="Close" className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
             Close
           </button>
         </div>

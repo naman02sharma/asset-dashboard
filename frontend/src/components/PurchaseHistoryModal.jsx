@@ -60,7 +60,7 @@ export default function PurchaseHistoryModal({ purchaseId, itemName, onClose }) 
               {itemName && <p className="text-xs text-slate-400">{itemName}</p>}
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} title="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -89,7 +89,7 @@ export default function PurchaseHistoryModal({ purchaseId, itemName, onClose }) 
         </div>
 
         <div className="flex justify-end border-t border-slate-100 px-5 py-3">
-          <button onClick={onClose} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200">
+          <button onClick={onClose} title="Close" className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200">
             Close
           </button>
         </div>
