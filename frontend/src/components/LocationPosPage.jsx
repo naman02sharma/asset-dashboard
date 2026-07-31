@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, MapPin, Package, Boxes, Search, Loader2, Hash } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, MapPin, Package, Boxes, Search, Loader2, Hash, PackageSearch, Building2 } from 'lucide-react';
 import { api } from '../api/api.js';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Badge } from './ui/badge.jsx';
+import { AnimatedNumber } from './ui/animated-number.jsx';
 
 const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
@@ -167,26 +170,30 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
             )}
             {!loadingOverview && overview.map((loc) => {
               const pending = (loc.pending_purchase_count || 0) + (loc.pending_asset_count || 0);
+              const isSelected = selectedId === loc.id && !showingPoSearch;
               return (
                 <button
                   key={loc.id}
                   onClick={() => { setSelectedId(loc.id); setPoQuery(''); }}
                   title={`${loc.purchase_count + loc.asset_count} total, ${pending} pending`}
-                  className={`flex w-full items-center justify-between gap-2 border-b border-slate-50 px-4 py-3 text-left transition-colors last:border-0 hover:bg-slate-50 ${
-                    selectedId === loc.id && !showingPoSearch ? 'bg-brand-50' : ''
+                  className={`group flex w-full items-center justify-between gap-2 border-b border-slate-50 px-4 py-3 text-left transition-all last:border-0 ${
+                    isSelected ? 'bg-gradient-to-r from-brand-50 to-brand-50/40 border-l-2 border-l-brand-500' : 'hover:bg-slate-50 border-l-2 border-l-transparent'
                   }`}
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-800">{loc.name}</p>
-                    <p className="font-mono text-[11px] text-slate-400">{loc.code}</p>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      isSelected ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'
+                    }`}>
+                      <MapPin size={14} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className={`truncate text-sm font-medium ${isSelected ? 'text-brand-700' : 'text-slate-800'}`}>{loc.name}</p>
+                      <p className="font-mono text-[11px] text-slate-400">{loc.code}</p>
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    {pending > 0 && (
-                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{pending} pending</span>
-                    )}
-                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                      {loc.purchase_count + loc.asset_count}
-                    </span>
+                    {pending > 0 && <Badge variant="amber">{pending} pending</Badge>}
+                    <Badge variant="slate">{loc.purchase_count + loc.asset_count}</Badge>
                   </div>
                 </button>
               );
@@ -197,7 +204,8 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
         {/* --- Detail: purchases + assets for the selected location, or PO search results --- */}
         <div className="space-y-4">
           {!showingPoSearch && !selectedId && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-400">
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-400">
+              <PackageSearch size={22} className="text-slate-300" />
               Pick a location on the left, or search a PO number above.
             </div>
           )}
@@ -209,80 +217,129 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
           )}
 
           {!loadingDetail && showingPoSearch && poResults && (poResults.purchases.length + poResults.assets.length === 0) && (
-            <div className="rounded-xl border border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-400">
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-400">
+              <Hash size={22} className="text-slate-300" />
               No PO numbers match "{poQuery.trim()}".
             </div>
           )}
 
-          {activePurchases?.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-4 py-3">
-                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
-                  <Package size={12} /> Purchases ({activePurchases.length})
-                </p>
-              </div>
-              <div className="divide-y divide-slate-50">
-                {activePurchases.map((p) => (
-                  <div key={p.id} className="px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-slate-800">{p.item_name}</p>
-                        <p className="text-xs text-slate-400">{p.vendor_name} · {dateFmt(p.order_date)}</p>
-                        <CreatorApproverLine item={p} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {p.po_number && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
-                            <Hash size={10} /> {p.po_number}
-                          </span>
-                        )}
-                        <span className="font-mono text-sm tabular-nums text-slate-700">{currency(p.total_cost)}</span>
-                      </div>
-                    </div>
-                    <ApprovalPanel item={p} canApprove={canApprove} onApprove={handleApprovePurchase} onReject={handleRejectPurchase} />
+          {/* Location context banner -- who/where you're looking at,
+              persistent above the results so switching locations
+              doesn't leave you scrolling back to the left rail to
+              remember which one is selected. Counts use the same
+              AnimatedNumber count-up as the dashboard KPI cards for a
+              bit of consistency/life when you switch locations. */}
+          {!loadingDetail && !showingPoSearch && selectedId && detail?.location && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-gradient-to-br from-brand-50/60 to-white px-5 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-sm">
+                  <Building2 size={17} />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-semibold text-slate-900">{detail.location.name}</p>
+                    <Badge variant="brand">{detail.location.code}</Badge>
                   </div>
-                ))}
+                  <p className="text-xs text-slate-500">{detail.location.address || 'No address on file'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-center">
+                <div>
+                  <p className="font-mono text-lg font-semibold tabular-nums text-slate-800">
+                    <AnimatedNumber value={activePurchases.length} format={(n) => Math.round(n)} />
+                  </p>
+                  <p className="text-[11px] text-slate-400">purchases</p>
+                </div>
+                <div>
+                  <p className="font-mono text-lg font-semibold tabular-nums text-slate-800">
+                    <AnimatedNumber value={activeAssets.length} format={(n) => Math.round(n)} />
+                  </p>
+                  <p className="text-[11px] text-slate-400">assets</p>
+                </div>
               </div>
             </div>
           )}
 
-          {activeAssets?.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-4 py-3">
-                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
-                  <Boxes size={12} /> Inventory assets ({activeAssets.length})
-                </p>
-              </div>
-              <div className="divide-y divide-slate-50">
-                {activeAssets.map((a) => (
-                  <div key={a.id} className="px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-slate-800">{a.asset_name}</p>
-                        <p className="text-xs text-slate-400">{a.category || '—'} · {dateFmt(a.purchase_date)}</p>
-                        <CreatorApproverLine item={a} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {a.po_number && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
-                            <Hash size={10} /> {a.po_number}
-                          </span>
-                        )}
-                        <span className="font-mono text-sm tabular-nums text-slate-700">{currency(a.cost)}</span>
-                      </div>
-                    </div>
-                    <ApprovalPanel item={a} canApprove={canApprove} onApprove={handleApproveAsset} onReject={handleRejectAsset} />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={showingPoSearch ? `po:${poQuery}` : `loc:${selectedId}`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="space-y-4"
+            >
+              {activePurchases?.length > 0 && (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="border-b border-slate-100 px-4 py-3">
+                    <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+                      <Package size={12} /> Purchases ({activePurchases.length})
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div className="divide-y divide-slate-50">
+                    {activePurchases.map((p) => (
+                      <div key={p.id} className="px-4 py-3 transition-colors hover:bg-slate-50">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-medium text-slate-800">{p.item_name}</p>
+                            <p className="text-xs text-slate-400">{p.vendor_name} · {dateFmt(p.order_date)}</p>
+                            <CreatorApproverLine item={p} />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {p.po_number && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
+                                <Hash size={10} /> {p.po_number}
+                              </span>
+                            )}
+                            <span className="font-mono text-sm tabular-nums text-slate-700">{currency(p.total_cost)}</span>
+                          </div>
+                        </div>
+                        <ApprovalPanel item={p} canApprove={canApprove} onApprove={handleApprovePurchase} onReject={handleRejectPurchase} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {!loadingDetail && !showingPoSearch && selectedId && detail && activePurchases?.length === 0 && activeAssets?.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-400">
-              Nothing recorded for {detail.location?.name} yet.
-            </div>
-          )}
+              {activeAssets?.length > 0 && (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="border-b border-slate-100 px-4 py-3">
+                    <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+                      <Boxes size={12} /> Inventory assets ({activeAssets.length})
+                    </p>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {activeAssets.map((a) => (
+                      <div key={a.id} className="px-4 py-3 transition-colors hover:bg-slate-50">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-medium text-slate-800">{a.asset_name}</p>
+                            <p className="text-xs text-slate-400">{a.category || '—'} · {dateFmt(a.purchase_date)}</p>
+                            <CreatorApproverLine item={a} />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {a.po_number && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
+                                <Hash size={10} /> {a.po_number}
+                              </span>
+                            )}
+                            <span className="font-mono text-sm tabular-nums text-slate-700">{currency(a.cost)}</span>
+                          </div>
+                        </div>
+                        <ApprovalPanel item={a} canApprove={canApprove} onApprove={handleApproveAsset} onReject={handleRejectAsset} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!loadingDetail && !showingPoSearch && selectedId && detail && activePurchases?.length === 0 && activeAssets?.length === 0 && (
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-400">
+                  <Boxes size={22} className="text-slate-300" />
+                  Nothing recorded for {detail.location?.name} yet.
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </main>

@@ -1,5 +1,6 @@
 import { Wallet, CheckCircle2, CalendarClock, Truck, Wrench } from 'lucide-react';
 import { TiltCard } from './ui/tilt-card.jsx';
+import { AnimatedNumber } from './ui/animated-number.jsx';
 
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
@@ -37,6 +38,8 @@ export default function KpiCards({ summary }) {
     {
       label: 'Total Asset Purchase Value',
       value: currency(total),
+      rawValue: total,
+      formatFn: currency,
       icon: Wallet,
       accent: 'text-slate-900',
       iconBg: 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 ring-1 ring-slate-200/60',
@@ -45,6 +48,8 @@ export default function KpiCards({ summary }) {
     {
       label: 'Total Amount Paid',
       value: currency(paid),
+      rawValue: paid,
+      formatFn: currency,
       icon: CheckCircle2,
       accent: 'text-green-700',
       iconBg: 'bg-gradient-to-br from-green-50 to-green-100 text-green-600 ring-1 ring-green-100',
@@ -53,6 +58,8 @@ export default function KpiCards({ summary }) {
     {
       label: 'Amount To Be Paid (Future)',
       value: currency(futureAmountDue),
+      rawValue: futureAmountDue,
+      formatFn: currency,
       icon: CalendarClock,
       accent: futureAmountDue > 0 ? 'text-red-700' : 'text-slate-900',
       iconBg: futureAmountDue > 0 ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-600 ring-1 ring-red-100' : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 ring-1 ring-slate-200/60',
@@ -65,6 +72,8 @@ export default function KpiCards({ summary }) {
     {
       label: 'Pending Deliveries',
       value: summary?.pending_deliveries ?? 0,
+      rawValue: summary?.pending_deliveries ?? 0,
+      formatFn: (n) => Math.round(n).toLocaleString('en-IN'),
       icon: Truck,
       accent: 'text-amber-700',
       iconBg: 'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600 ring-1 ring-amber-100',
@@ -78,6 +87,8 @@ export default function KpiCards({ summary }) {
     {
       label: 'Upcoming Maintenance Cost',
       value: currency(upcomingMaintenanceCost),
+      rawValue: upcomingMaintenanceCost,
+      formatFn: currency,
       icon: Wrench,
       accent: upcomingMaintenanceCost > 0 ? 'text-purple-700' : 'text-slate-900',
       iconBg: 'bg-gradient-to-br from-purple-50 to-purple-100 text-purple-600 ring-1 ring-purple-100',
@@ -101,7 +112,7 @@ export default function KpiCards({ summary }) {
               </span>
             </div>
             <p className={`mt-2 font-mono text-2xl font-semibold tabular-nums ${card.accent}`}>
-              {card.isCount ? card.value : card.value}
+              <AnimatedNumber value={card.rawValue} format={card.formatFn} />
             </p>
             {card.meter}
           </div>

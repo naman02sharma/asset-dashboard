@@ -26,23 +26,43 @@ export default {
           900: '#272635',
           950: '#18171F',
         },
-        // Accent — indigo/violet (Round 11 theme change, chosen by
-        // Avs from a 3-way mockup comparison: kept the original
-        // teal-blue as "A", added a teal+coral two-tone as "B", this
-        // indigo direction as "C" -- "C" was picked for a more premium
-        // SaaS feel). Every component references brand-50/100/500/
-        // 600/700 by name rather than a literal hex (confirmed via a
-        // full grep sweep before this change), so this single edit is
-        // the entire color change -- no component files needed
-        // touching. Contrast-checked against WCAG AA for every real
-        // pairing used in the app (white-on-600 buttons, 700-on-50/100
-        // badges, 600-on-white active nav text) before landing.
+        // Accent — teal/emerald (Round 12: switched again, this time
+        // to option "B" from the original 3-way mockup -- Avs shared a
+        // screenshot of that exact card and asked to use "the white
+        // and green one"). Every component references brand-50/100/
+        // 500/600/700 by name, never a literal hex (confirmed via a
+        // full grep sweep both times this palette has changed), so
+        // this is again a two-file edit (this + index.css's CSS
+        // vars) -- no component files touched for the base color.
+        // Contrast-checked against WCAG AA (white-on-600 buttons
+        // 5.72:1, 700-on-50 badges 8.3:1) before landing -- darkened
+        // slightly versus the screenshot's literal color so white
+        // button text stays comfortably readable.
         brand: {
-          50:  '#F2F1FB',
-          100: '#D3D1F0',
-          500: '#8A86D5',
-          600: '#5751C2',
-          700: '#3A3597',
+          50:  '#EDF8F4',
+          100: '#C6ECDE',
+          500: '#259D71',
+          600: '#1B7453',
+          700: '#13533B',
+        },
+        // Secondary accent — coral (the second half of the "teal +
+        // coral" two-tone direction). Used specifically for the
+        // Senior role's identity color everywhere it appears (badges
+        // in the header account menu, Manage Users, HR directory),
+        // replacing the generic Tailwind amber that was there before
+        // -- swapped in every one of those spots for consistency, not
+        // just the one place that happened to get touched first. NOT
+        // used for the unrelated "X pending" amber badges elsewhere
+        // (maintenance/approval pending counts) -- those keep amber's
+        // standard warning/pending meaning, which is a different
+        // concept from the Senior role and shouldn't be visually
+        // conflated with it.
+        coral: {
+          50:  '#F8E8E2',
+          100: '#F2CDC0',
+          500: '#E77C55',
+          600: '#DF5320',
+          700: '#A13C17',
         },
         // shadcn/ui's semantic token set (border/input/ring/background/
         // foreground/primary/secondary/muted/accent/destructive/card/

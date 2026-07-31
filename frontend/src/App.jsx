@@ -551,7 +551,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                       </span>
                       <span className="hidden leading-tight sm:block">
                         <span className="block text-sm font-medium text-slate-700">{user.name}</span>
-                        <Badge variant={user.role === 'admin' ? 'gradient' : user.role === 'senior' ? 'amber' : 'slate'}>
+                        <Badge variant={user.role === 'admin' ? 'gradient' : user.role === 'senior' ? 'coral' : 'slate'}>
                           {user.role === 'admin' ? 'Admin' : user.role === 'senior' ? 'Senior' : 'Employee'}
                         </Badge>
                       </span>

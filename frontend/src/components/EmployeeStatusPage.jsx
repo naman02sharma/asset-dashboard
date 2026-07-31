@@ -282,7 +282,7 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                              u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'senior' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+                              u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'senior' ? 'bg-coral-50 text-coral-600' : 'bg-slate-100 text-slate-400'
                             }`}>
                               {u.role === 'admin' ? <ShieldCheck size={14} /> : u.role === 'senior' ? <Pencil size={14} /> : <User size={14} />}
                             </span>
@@ -298,7 +298,7 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                               onChange={(e) => handleRoleChange(u, e.target.value)}
                               title="Change role"
                               className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                                u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                                u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-coral-100 text-coral-700' : 'bg-slate-100 text-slate-500'
                               }`}>
                               <option value="employee">Employee</option>
                               <option value="senior">Senior</option>
@@ -306,7 +306,7 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                             </select>
                           ) : (
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                              u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-coral-100 text-coral-700' : 'bg-slate-100 text-slate-500'
                             }`}>
                               {u.role === 'admin' ? 'Admin' : u.role === 'senior' ? 'Senior' : 'Employee'}
                             </span>
@@ -412,7 +412,7 @@ function HierarchyNode({ user, childrenOf, depth }) {
     <li>
       <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50" style={{ marginLeft: depth * 28 }}>
         <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-          user.role === 'admin' ? 'bg-brand-50 text-brand-600' : user.role === 'senior' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+          user.role === 'admin' ? 'bg-brand-50 text-brand-600' : user.role === 'senior' ? 'bg-coral-50 text-coral-600' : 'bg-slate-100 text-slate-400'
         }`}>
           {user.role === 'admin' ? <ShieldCheck size={13} /> : user.role === 'senior' ? <Pencil size={13} /> : <User size={13} />}
         </span>

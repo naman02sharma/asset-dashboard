@@ -187,7 +187,7 @@ export default function ManageUsersModal({ onClose, showToast }) {
                     <li key={u.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'senior' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+                          u.role === 'admin' ? 'bg-brand-50 text-brand-600' : u.role === 'senior' ? 'bg-coral-50 text-coral-600' : 'bg-slate-100 text-slate-400'
                         }`}>
                           {u.role === 'admin' ? <ShieldCheck size={14} /> : <User size={14} />}
                         </span>
@@ -205,7 +205,7 @@ export default function ManageUsersModal({ onClose, showToast }) {
                           onChange={(e) => handleRoleChange(u, e.target.value)}
                           title="Change role"
                           className={`rounded-full border-0 px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                            u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                            u.role === 'admin' ? 'bg-brand-100 text-brand-700' : u.role === 'senior' ? 'bg-coral-100 text-coral-700' : 'bg-slate-100 text-slate-500'
                           }`}
                         >
                           <option value="employee">Employee</option>
