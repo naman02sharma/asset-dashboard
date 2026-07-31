@@ -209,19 +209,19 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
 
       {users && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
             <div className="flex items-center gap-2 text-slate-400"><Users2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Total accounts</span></div>
             <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.total}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
             <div className="flex items-center gap-2 text-slate-400"><UserCheck2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Active</span></div>
             <p className="mt-1.5 text-2xl font-bold text-green-700">{kpis.active}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
             <div className="flex items-center gap-2 text-slate-400"><ShieldCheck size={15} /><span className="text-xs font-medium uppercase tracking-wide">Admins</span></div>
             <p className="mt-1.5 text-2xl font-bold text-brand-700">{kpis.admins}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
             <div className="flex items-center gap-2 text-slate-400"><Building2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Departments</span></div>
             <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.departments}</p>
           </div>

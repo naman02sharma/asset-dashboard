@@ -58,7 +58,7 @@ export default function VendorManagementPage({ vendors, onUpdateVendor, onCreate
         </div>
         <button
           onClick={() => setActiveVendor({ mode: 'create', data: null })}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:from-brand-600 hover:to-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all active:scale-95"
         >
           <Plus size={16} /> Add Vendor
         </button>
@@ -89,7 +89,7 @@ export default function VendorManagementPage({ vendors, onUpdateVendor, onCreate
       <div className="flex-1 overflow-auto px-8 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((v) => (
-            <div key={v.id} className="relative group rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div key={v.id} className="relative group rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
               <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                 {canEdit && (
                   <button

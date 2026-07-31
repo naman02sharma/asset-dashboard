@@ -241,7 +241,7 @@ export default function LoginScreen({ onAuthenticated }) {
                 {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
                 <button type="submit" disabled={submitting}
-                  className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-60">
+                  className="w-full rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95">
                   {submitting ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
                 </button>
               </form>
@@ -262,7 +262,7 @@ export default function LoginScreen({ onAuthenticated }) {
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
               <button type="submit" disabled={submitting}
-                className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-60">
+                className="w-full rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95">
                 {submitting ? 'Sending…' : 'Send reset link'}
               </button>
 
@@ -295,7 +295,7 @@ export default function LoginScreen({ onAuthenticated }) {
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
               <button type="submit" disabled={submitting}
-                className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-60">
+                className="w-full rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95">
                 {submitting ? 'Updating…' : 'Update password'}
               </button>
             </form>

@@ -289,7 +289,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
   }
 
   return (
-    <div className="group rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+    <div className="group rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
       <div className="flex items-center gap-4 px-4 py-3">
         <button onClick={onToggleExpand} className="flex-1 text-left">
           <div className="flex items-center gap-2">
@@ -477,7 +477,7 @@ function ExpandedDetails({ purchase: p, onUpdated, showToast, onUploadPhotos, on
           )}
         </div>
         <button onClick={handleSaveMaintenance} disabled={saving}
-          className="mt-3 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition-colors">
+          className="mt-3 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 transition-all active:scale-95">
           {saving ? 'Saving…' : 'Save maintenance schedule'}
         </button>
         <p className="mt-1 text-[11px] text-slate-400">

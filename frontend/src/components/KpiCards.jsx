@@ -38,7 +38,7 @@ export default function KpiCards({ summary }) {
       value: currency(total),
       icon: Wallet,
       accent: 'text-slate-900',
-      iconBg: 'bg-slate-100 text-slate-600',
+      iconBg: 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 ring-1 ring-slate-200/60',
       meter: <SpendMeter paidPct={paidPct} />,
     },
     {
@@ -46,7 +46,7 @@ export default function KpiCards({ summary }) {
       value: currency(paid),
       icon: CheckCircle2,
       accent: 'text-green-700',
-      iconBg: 'bg-green-50 text-green-600',
+      iconBg: 'bg-gradient-to-br from-green-50 to-green-100 text-green-600 ring-1 ring-green-100',
       meter: <p className="text-xs text-slate-400 mt-3">{paidPct.toFixed(0)}% of total spend</p>,
     },
     {
@@ -54,7 +54,7 @@ export default function KpiCards({ summary }) {
       value: currency(futureAmountDue),
       icon: CalendarClock,
       accent: futureAmountDue > 0 ? 'text-red-700' : 'text-slate-900',
-      iconBg: futureAmountDue > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500',
+      iconBg: futureAmountDue > 0 ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-600 ring-1 ring-red-100' : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 ring-1 ring-slate-200/60',
       meter: (
         <p className="text-xs text-slate-400 mt-3">
           {currency(pendingDeliveryOwed)} on deliveries · {currency(upcomingMaintenanceCost)} on maintenance
@@ -66,7 +66,7 @@ export default function KpiCards({ summary }) {
       value: summary?.pending_deliveries ?? 0,
       icon: Truck,
       accent: 'text-amber-700',
-      iconBg: 'bg-amber-50 text-amber-600',
+      iconBg: 'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600 ring-1 ring-amber-100',
       meter: (
         <p className="text-xs text-slate-400 mt-3">
           {pendingDeliveryOwed > 0 ? <span className="font-medium text-amber-700">{currency(pendingDeliveryOwed)} owed</span> : 'Fully paid'} on orders not yet delivered
@@ -79,7 +79,7 @@ export default function KpiCards({ summary }) {
       value: currency(upcomingMaintenanceCost),
       icon: Wrench,
       accent: upcomingMaintenanceCost > 0 ? 'text-purple-700' : 'text-slate-900',
-      iconBg: 'bg-purple-50 text-purple-600',
+      iconBg: 'bg-gradient-to-br from-purple-50 to-purple-100 text-purple-600 ring-1 ring-purple-100',
       meter: (
         <p className="text-xs text-slate-400 mt-3">
           {upcomingMaintenanceCount > 0 ? `Across ${upcomingMaintenanceCount} scheduled visit${upcomingMaintenanceCount === 1 ? '' : 's'}` : 'Nothing scheduled'}
@@ -91,11 +91,11 @@ export default function KpiCards({ summary }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+        <div key={card.label} className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
           <div className="flex items-start justify-between">
             <p className="text-sm font-medium text-slate-500">{card.label}</p>
-            <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${card.iconBg}`}>
-              <card.icon size={16} strokeWidth={2} />
+            <span className={`flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110 ${card.iconBg}`}>
+              <card.icon size={17} strokeWidth={2} />
             </span>
           </div>
           <p className={`mt-2 font-mono text-2xl font-semibold tabular-nums ${card.accent}`}>

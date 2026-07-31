@@ -321,7 +321,7 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
                 onClick={() => generatePoNumber()}
                 disabled={poGenerating || !form.location_name.trim()}
                 title="Generate the PO number for this location"
-                className="mt-5 flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                className="mt-5 flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all disabled:opacity-50 active:scale-95"
               >
                 {poGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                 Generate PO
@@ -539,7 +539,7 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
             Cancel
           </button>
           <button type="submit" form="new-purchase-form" disabled={submitting}
-            className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors disabled:opacity-60">
+            className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all disabled:opacity-60 active:scale-95">
             {submitting ? 'Saving…' : 'Create Purchase'}
           </button>
         </div>

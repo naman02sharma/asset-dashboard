@@ -66,20 +66,47 @@ router.patch('/:id', asyncHandler(async (req, res) => {
 // itself refuses to delete a vendor that's still referenced by any
 // purchase or asset — caught here and turned into a clear 409 instead
 // of a raw Postgres foreign-key error reaching the frontend.
+//
+// NOTE on why this can 409 even after "deleting" every purchase/asset
+// from this vendor in the UI: the normal Delete button on a purchase
+// only archives it (archived_at set, row kept — see
+// purchaseController.deletePurchase's default 'history' mode) so it
+// still counts here. Only a *permanent* delete (from the History
+// page, admin-only) actually removes the row and clears this vendor
+// reference. Assets' Delete button IS a real hard delete already.
 router.delete('/:id', requireAdminOrSenior, asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Checked up front (rather than only reacting to the FK error) so
+  // the message can say exactly how many purchases/assets are in the
+  // way, including archived-but-not-permanently-deleted ones — that's
+  // the detail that was missing before and made the plain 409 feel
+  // opaque/broken from the frontend.
+  const { rows: usage } = await pool.query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM purchases WHERE vendor_id = $1::uuid) AS purchase_count,
+       (SELECT COUNT(*)::int FROM assets WHERE vendor_id = $1::uuid) AS asset_count`,
+    [id]
+  );
+  const { purchase_count, asset_count } = usage[0];
+  if (purchase_count > 0 || asset_count > 0) {
+    const parts = [];
+    if (purchase_count > 0) parts.push(`${purchase_count} purchase${purchase_count === 1 ? '' : 's'}`);
+    if (asset_count > 0) parts.push(`${asset_count} asset${asset_count === 1 ? '' : 's'}`);
+    return res.status(409).json({
+      error: `This vendor still has ${parts.join(' and ')} attached (this includes archived/deleted-from-view purchases — archiving doesn't remove the record). Permanently delete those from the History page, or reassign them to a different vendor, before deleting this vendor.`,
+    });
+  }
+
   try {
     const { rowCount } = await pool.query(`DELETE FROM vendors WHERE id = $1::uuid`, [id]);
     if (!rowCount) return res.status(404).json({ error: 'Vendor not found.' });
     res.status(204).send();
   } catch (err) {
-    // Postgres reports an ON DELETE RESTRICT violation as '23001'
-    // (restrict_violation), NOT the more commonly-checked '23503'
-    // (foreign_key_violation) that a plain missing-reference insert
-    // would raise — both are handled here since either could
-    // theoretically surface depending on Postgres version/constraint
-    // shape. Confirmed live: deleting a vendor still referenced by a
-    // purchase raises '23001' specifically.
+    // Safety net for a race (something got attached between the check
+    // above and this DELETE) — Postgres reports an ON DELETE RESTRICT
+    // violation as '23001' (restrict_violation), NOT the more
+    // commonly-checked '23503' (foreign_key_violation); both handled.
     if (err.code === '23001' || err.code === '23503') {
       return res.status(409).json({ error: 'This vendor has existing purchases or assets and cannot be deleted. Reassign or remove those first.' });
     }

@@ -78,7 +78,7 @@ export default function FilterBar({ query, setQuery, status, setStatus, sort, se
         </button>
         <button
           onClick={onAddClick}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all active:scale-95"
         >
           <Plus size={16} /> New Purchase
         </button>

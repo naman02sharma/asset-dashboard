@@ -70,7 +70,7 @@ export default function FilePreviewModal({ file, onClose }) {
               <FileQuestion size={32} />
               <p className="text-sm">No inline preview for this file type.</p>
               <a href={file.url} target="_blank" rel="noreferrer"
-                className="mt-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 transition-colors">
+                className="mt-1 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all active:scale-95">
                 Open in new tab
               </a>
             </div>

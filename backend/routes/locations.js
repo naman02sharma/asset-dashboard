@@ -34,6 +34,17 @@ router.post('/', asyncHandler(async (req, res) => {
 // asset counts (including how many are still pending approval) so
 // the new "Location POs" page can show a picker without the frontend
 // having to fetch and count everything itself.
+//
+// BUGFIX: purchase_count must exclude any purchase whose PO number
+// already has a linked asset (ensureAssetFromPurchase auto-creates
+// one on delivery+approval, inheriting the same po_number) -- the
+// Location POs page's detail view already hides that purchase and
+// shows only the asset for it (see LocationPosPage.jsx's
+// activePurchases filter), so without this same exclusion here, this
+// picker's badge count didn't match what the detail view actually
+// listed once you clicked in (e.g. badge said "3", detail only showed
+// 2 rows). Assets are never suppressed the other way, so asset_count
+// stays a plain count.
 router.get('/overview', asyncHandler(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
@@ -44,11 +55,15 @@ router.get('/overview', asyncHandler(async (req, res) => {
       COALESCE(ac.pending_asset_count, 0)::int AS pending_asset_count
     FROM locations l
     LEFT JOIN (
-      SELECT delivery_location_id,
-        COUNT(*) AS purchase_count,
-        COUNT(*) FILTER (WHERE approval_status = 'pending') AS pending_purchase_count
-      FROM purchases WHERE archived_at IS NULL
-      GROUP BY delivery_location_id
+      SELECT p.delivery_location_id,
+        COUNT(*) FILTER (WHERE NOT EXISTS (
+          SELECT 1 FROM assets a2 WHERE a2.po_number = p.po_number
+        )) AS purchase_count,
+        COUNT(*) FILTER (WHERE p.approval_status = 'pending' AND NOT EXISTS (
+          SELECT 1 FROM assets a2 WHERE a2.po_number = p.po_number
+        )) AS pending_purchase_count
+      FROM purchases p WHERE p.archived_at IS NULL
+      GROUP BY p.delivery_location_id
     ) pc ON pc.delivery_location_id = l.id
     LEFT JOIN (
       SELECT location_id,

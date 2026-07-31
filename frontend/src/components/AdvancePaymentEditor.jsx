@@ -103,7 +103,7 @@ export default function AdvancePaymentEditor({ purchase, onSave }) {
           <X size={13} />
         </button>
         <button onClick={handleSave} disabled={saving} title="Save"
-          className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60">
+          className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-b from-brand-500 to-brand-600 text-white hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95 transition-all">
           {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={13} />}
         </button>
       </div>

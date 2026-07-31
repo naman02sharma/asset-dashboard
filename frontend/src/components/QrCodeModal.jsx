@@ -56,7 +56,7 @@ export default function QrCodeModal({ asset, onClose }) {
 
         {imgUrl && (
           <a href={imgUrl} download={`asset-qr-${asset.asset_tag || asset.id}.png`}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-brand-700 transition-colors">
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-xs font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all active:scale-95">
             <Download size={13} /> Download PNG
           </a>
         )}

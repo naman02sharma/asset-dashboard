@@ -436,7 +436,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 shadow-sm shadow-slate-200/40 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-5">
           <button onClick={() => setView('dashboard')}
             title="Dashboard"
@@ -465,25 +465,25 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                 of a bare row of icons, so destinations are readable at a
                 glance (labels show at lg+, icons + tooltips cover the
                 narrower breakpoints where the header was already tight). */}
-            <nav className="flex items-center gap-0.5 rounded-xl bg-slate-100 p-1">
+            <nav className="flex items-center gap-0.5 rounded-xl bg-gradient-to-b from-slate-100 to-slate-100/70 p-1 ring-1 ring-slate-200/60">
               <button onClick={() => setView(view === 'assets' ? 'dashboard' : 'assets')}
                 title="Assets & Order History"
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  view === 'assets' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                  view === 'assets' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                 }`}>
                 <Boxes size={15} /> <span className="hidden lg:inline">Assets</span>
               </button>
               <button onClick={() => setView(view === 'vendors' ? 'dashboard' : 'vendors')}
                 title="Vendor Management"
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  view === 'vendors' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                  view === 'vendors' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                 }`}>
                 <Truck size={15} /> <span className="hidden lg:inline">Vendors</span>
               </button>
               <button onClick={() => setView(view === 'locations' ? 'dashboard' : 'locations')}
                 title="Location POs"
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  view === 'locations' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                  view === 'locations' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                 }`}>
                 <MapPin size={15} /> <span className="hidden lg:inline">Locations</span>
               </button>
@@ -491,7 +491,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                 <button onClick={() => setView(view === 'employees' ? 'dashboard' : 'employees')}
                   title="Employee Status"
                   className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    view === 'employees' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                    view === 'employees' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                   }`}>
                   <Contact size={15} /> <span className="hidden lg:inline">HR</span>
                 </button>
