@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/db.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { requireAdminOrSenior } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -56,6 +57,34 @@ router.patch('/:id', asyncHandler(async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: 'Vendor not found.' });
   res.json(rows[0]);
+}));
+
+// DELETE /vendors/:id — admin OR senior (a deliberate, narrow
+// exception to the usual "delete is admin-only" rule everywhere else
+// in the app, per explicit request). purchases.vendor_id and
+// assets.vendor_id are both ON DELETE RESTRICT, so the database
+// itself refuses to delete a vendor that's still referenced by any
+// purchase or asset — caught here and turned into a clear 409 instead
+// of a raw Postgres foreign-key error reaching the frontend.
+router.delete('/:id', requireAdminOrSenior, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rowCount } = await pool.query(`DELETE FROM vendors WHERE id = $1::uuid`, [id]);
+    if (!rowCount) return res.status(404).json({ error: 'Vendor not found.' });
+    res.status(204).send();
+  } catch (err) {
+    // Postgres reports an ON DELETE RESTRICT violation as '23001'
+    // (restrict_violation), NOT the more commonly-checked '23503'
+    // (foreign_key_violation) that a plain missing-reference insert
+    // would raise — both are handled here since either could
+    // theoretically surface depending on Postgres version/constraint
+    // shape. Confirmed live: deleting a vendor still referenced by a
+    // purchase raises '23001' specifically.
+    if (err.code === '23001' || err.code === '23503') {
+      return res.status(409).json({ error: 'This vendor has existing purchases or assets and cannot be deleted. Reassign or remove those first.' });
+    }
+    throw err;
+  }
 }));
 
 export default router;

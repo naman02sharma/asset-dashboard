@@ -98,7 +98,7 @@ export default function HistoryModal({ onClose, onChanged }) {
                         disabled={busyId === p.id}
                         onClick={() => handleRestore(p.id)}
                         title="Restore"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 transition-all"
                       >
                         <RotateCcw size={14} />
                       </button>
@@ -106,7 +106,7 @@ export default function HistoryModal({ onClose, onChanged }) {
                         disabled={busyId === p.id}
                         onClick={() => handlePermanentDelete(p.id)}
                         title="Delete permanently"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 transition-all"
                       >
                         <Trash2 size={14} />
                       </button>

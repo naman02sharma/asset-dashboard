@@ -23,7 +23,7 @@ export default function AssetLifecyclePage({ vendors, locations, onBack, showToa
     <div className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
       <div className="flex items-center gap-3">
         <button onClick={onBack} title="Back to dashboard"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:scale-105 transition-all">
           <ArrowLeft size={16} />
         </button>
         <div>

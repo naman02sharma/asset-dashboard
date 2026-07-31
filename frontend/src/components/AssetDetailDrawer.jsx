@@ -60,13 +60,13 @@ export default function AssetDetailDrawer({ assetId, onClose, onEdit, showToast,
           <div className="flex items-center gap-2">
             {data && (
               <button onClick={() => setShowQr(true)} title="Show QR code"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
                 <QrCode size={14} />
               </button>
             )}
             {data && canEdit && (
               <button onClick={() => onEdit(data.asset)} title="Edit asset"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
                 <Pencil size={14} />
               </button>
             )}

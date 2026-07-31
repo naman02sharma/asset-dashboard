@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Search, ShieldCheck, User, Network, LayoutList, Pencil, Check, X, Download, Users2, UserCheck2, Building2, UserX } from 'lucide-react';
 import { api } from '../api/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import DepartmentBreakdownChart from './DepartmentBreakdownChart.jsx';
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-1.5 px-2.5 text-xs text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -209,26 +208,23 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
       )}
 
       {users && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:col-span-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="flex items-center gap-2 text-slate-400"><Users2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Total accounts</span></div>
-              <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.total}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="flex items-center gap-2 text-slate-400"><UserCheck2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Active</span></div>
-              <p className="mt-1.5 text-2xl font-bold text-green-700">{kpis.active}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="flex items-center gap-2 text-slate-400"><ShieldCheck size={15} /><span className="text-xs font-medium uppercase tracking-wide">Admins</span></div>
-              <p className="mt-1.5 text-2xl font-bold text-brand-700">{kpis.admins}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="flex items-center gap-2 text-slate-400"><Building2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Departments</span></div>
-              <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.departments}</p>
-            </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+            <div className="flex items-center gap-2 text-slate-400"><Users2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Total accounts</span></div>
+            <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.total}</p>
           </div>
-          <DepartmentBreakdownChart users={users} />
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+            <div className="flex items-center gap-2 text-slate-400"><UserCheck2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Active</span></div>
+            <p className="mt-1.5 text-2xl font-bold text-green-700">{kpis.active}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+            <div className="flex items-center gap-2 text-slate-400"><ShieldCheck size={15} /><span className="text-xs font-medium uppercase tracking-wide">Admins</span></div>
+            <p className="mt-1.5 text-2xl font-bold text-brand-700">{kpis.admins}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+            <div className="flex items-center gap-2 text-slate-400"><Building2 size={15} /><span className="text-xs font-medium uppercase tracking-wide">Departments</span></div>
+            <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpis.departments}</p>
+          </div>
         </div>
       )}
 
@@ -367,17 +363,17 @@ export default function EmployeeStatusPage({ onBack, showToast }) {
                             {isEditing ? (
                               <div className="flex justify-end gap-1">
                                 <button onClick={() => saveEdit(u)} disabled={savingId === u.id}
-                                  className="flex h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+                                  className="flex h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white transition-all hover:scale-105 hover:bg-green-700 disabled:opacity-50 disabled:hover:scale-100">
                                   {savingId === u.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={13} />}
                                 </button>
                                 <button onClick={cancelEdit} title="Cancel" disabled={savingId === u.id}
-                                  className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100">
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition-all hover:scale-105 hover:bg-slate-100">
                                   <X size={13} />
                                 </button>
                               </div>
                             ) : (
                               <button onClick={() => startEdit(u)}
-                                className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-brand-50 hover:text-brand-600 ml-auto">
+                                className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition-all hover:scale-105 hover:bg-brand-50 hover:text-brand-600 ml-auto">
                                 <Pencil size={13} />
                               </button>
                             )}

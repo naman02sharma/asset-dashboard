@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, MapPin, Package, Boxes, Search, Loader2, Hash } from 'lucide-react';
 import { api } from '../api/api.js';
-import { ApprovalPanel } from './ApprovalStatusBadge.jsx';
+import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const currency = (n) =>
@@ -114,14 +114,24 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
   }
 
   const showingPoSearch = poQuery.trim().length >= 2;
-  const activePurchases = showingPoSearch ? poResults?.purchases : detail?.purchases;
+  const rawPurchases = showingPoSearch ? poResults?.purchases : detail?.purchases;
   const activeAssets = showingPoSearch ? poResults?.assets : detail?.assets;
+  // A purchase that's already been delivered and approved auto-links
+  // into Inventory as its own asset row (see ensureAssetFromPurchase),
+  // inheriting the SAME po_number -- without this filter it shows up
+  // twice here (once as the purchase, once as the linked asset) for
+  // the exact same PO. The asset is the more current/complete record
+  // (it's what's actually being tracked going forward -- assignment,
+  // AMC, depreciation, etc.), so once a PO number has a linked asset,
+  // suppress its purchase-side entry and let the asset represent it.
+  const linkedPoNumbers = new Set((activeAssets || []).map((a) => a.po_number).filter(Boolean));
+  const activePurchases = (rawPurchases || []).filter((p) => !p.po_number || !linkedPoNumbers.has(p.po_number));
 
   return (
     <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
       <div className="flex items-center gap-3">
         <button onClick={onBack} title="Back to dashboard"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:scale-105 transition-all">
           <ArrowLeft size={16} />
         </button>
         <div>
@@ -218,6 +228,7 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
                       <div>
                         <p className="font-medium text-slate-800">{p.item_name}</p>
                         <p className="text-xs text-slate-400">{p.vendor_name} · {dateFmt(p.order_date)}</p>
+                        <CreatorApproverLine item={p} />
                       </div>
                       <div className="flex items-center gap-2">
                         {p.po_number && (
@@ -249,6 +260,7 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
                       <div>
                         <p className="font-medium text-slate-800">{a.asset_name}</p>
                         <p className="text-xs text-slate-400">{a.category || '—'} · {dateFmt(a.purchase_date)}</p>
+                        <CreatorApproverLine item={a} />
                       </div>
                       <div className="flex items-center gap-2">
                         {a.po_number && (

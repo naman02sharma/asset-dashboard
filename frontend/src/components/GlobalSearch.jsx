@@ -50,9 +50,11 @@ export default function GlobalSearch({ onGoToPurchase, onGoToAsset, onGoToVendor
       // Merge both sides of the PO match into one flat list of "PO
       // number -> item name" pairs, deduplicated by po_number so a PO
       // that's both an approved purchase AND its auto-linked
-      // Inventory asset doesn't show twice.
+      // Inventory asset doesn't show twice. Assets go FIRST in the
+      // dedup so the asset side wins when both exist -- it's the more
+      // current record (same reasoning as LocationPosPage.jsx).
       const seen = new Set();
-      const poNumbers = [...(poSearch.purchases || []), ...(poSearch.assets || [])]
+      const poNumbers = [...(poSearch.assets || []), ...(poSearch.purchases || [])]
         .filter((row) => {
           if (!row.po_number || seen.has(row.po_number)) return false;
           seen.add(row.po_number);

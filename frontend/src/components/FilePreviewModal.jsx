@@ -41,11 +41,11 @@ export default function FilePreviewModal({ file, onClose }) {
           <p className="truncate text-sm font-medium text-slate-700">{name}</p>
           <div className="flex items-center gap-1">
             <a href={file.url} target="_blank" rel="noreferrer" title="Open in new tab"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand-600 transition-colors">
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand-600 hover:scale-105 transition-all">
               <ExternalLink size={15} />
             </a>
             <button onClick={onClose} title="Close"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 hover:scale-105 transition-all">
               <X size={17} />
             </button>
           </div>

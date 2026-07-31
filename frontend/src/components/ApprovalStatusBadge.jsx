@@ -29,6 +29,27 @@ export function ApprovalStatusBadge({ status }) {
 }
 
 /**
+ * Small persistent line showing who created and who approved/rejected
+ * an item -- unlike ApprovalPanel (which only renders while pending/
+ * rejected), this shows regardless of status, so the provenance stays
+ * visible even after approval rather than disappearing the moment
+ * it's resolved. Renders nothing if neither name is available.
+ */
+export function CreatorApproverLine({ item }) {
+  if (!item.requested_by_name && !item.approved_by_name) return null;
+  return (
+    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400">
+      <User size={10} className="shrink-0 text-slate-300" />
+      {item.requested_by_name && <span title={item.requested_by_phone ? `Phone: ${item.requested_by_phone}` : undefined}>Created by {item.requested_by_name}</span>}
+      {item.requested_by_name && item.approved_by_name && <span>·</span>}
+      {item.approved_by_name && (
+        <span>{item.approval_status === 'rejected' ? 'Rejected' : 'Approved'} by {item.approved_by_name}</span>
+      )}
+    </p>
+  );
+}
+
+/**
  * Full panel: shown inline under a pending/rejected purchase or asset
  * row so it's genuinely eye-catching ("attractive" per spec) rather
  * than a plain gray label — a soft amber gradient card carrying who

@@ -11,7 +11,7 @@ import AssetModifyEditor from './AssetModifyEditor.jsx';
 import { SkeletonTableRows } from './Skeleton.jsx';
 import ImportAssetsModal from './ImportAssetsModal.jsx';
 import BulkAssignModal from './BulkAssignModal.jsx';
-import { ApprovalPanel } from './ApprovalStatusBadge.jsx';
+import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const currency = (n) =>
@@ -364,7 +364,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
       {!embedded && (
         <div className="flex items-center gap-3">
           <button onClick={onBack} title="Back to dashboard"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:scale-105 transition-all">
             <ArrowLeft size={16} />
           </button>
           <div>
@@ -711,6 +711,7 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
           </span>
         )}
         {a.category && <p className="text-xs text-slate-400">{a.category}</p>}
+        <CreatorApproverLine item={a} />
         <ApprovalPanel item={a} canApprove={canApprove} onApprove={onApprove} onReject={onReject} />
       </td>
       <td className="px-4 py-3 text-slate-600">{a.vendor_name || '—'}</td>
@@ -764,7 +765,7 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
 function IconAction({ icon: Icon, label, onClick }) {
   return (
     <button onClick={onClick} title={label}
-      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-600">
+      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
       <Icon size={14} />
     </button>
   );

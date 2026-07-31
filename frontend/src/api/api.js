@@ -254,6 +254,7 @@ export const api = {
   getVendors: () => request('/vendors'),
   createVendor: (data) => request('/vendors', { method: 'POST', body: JSON.stringify(data) }),
   updateVendor: (id, data) => request(`/vendors/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteVendor: (id) => request(`/vendors/${id}`, { method: 'DELETE' }),
   getLocations: () => request('/locations'),
   getLocationsOverview: () => request('/locations/overview'),
   getLocationItems: (id) => request(`/locations/${id}/items`),

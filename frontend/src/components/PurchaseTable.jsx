@@ -7,7 +7,7 @@ import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
 import { SkeletonTableRows } from './Skeleton.jsx';
-import { ApprovalPanel } from './ApprovalStatusBadge.jsx';
+import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const currency = (n) =>
@@ -142,6 +142,7 @@ export default function PurchaseTable({
                       )}
                     </div>
                     {p.description && <p className="text-xs text-slate-400 line-clamp-1">{p.description}</p>}
+                    <CreatorApproverLine item={p} />
                     <ApprovalPanel item={p} canApprove={canApprove} onApprove={onApprovePurchase} onReject={onRejectPurchase} />
                   </td>
                   <td className="px-5 py-4 text-slate-500">{p.po_number || '—'}</td>

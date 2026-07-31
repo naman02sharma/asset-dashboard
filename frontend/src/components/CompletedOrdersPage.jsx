@@ -5,12 +5,12 @@ import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
 import { SkeletonCardRows } from './Skeleton.jsx';
 import AdvancePaymentEditor from './AdvancePaymentEditor.jsx';
 import SpendTrendChart from './SpendTrendChart.jsx';
-import MaintenanceCalendarCard from './MaintenanceCalendarCard.jsx';
-import OrderCalendarCard from './OrderCalendarCard.jsx';
+import CombinedCalendarCard from './CombinedCalendarCard.jsx';
+import LocationBreakdownChart from './LocationBreakdownChart.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
 import FilesCell from './FilesCell.jsx';
-import { ApprovalPanel } from './ApprovalStatusBadge.jsx';
+import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const currency = (n) =>
@@ -169,7 +169,7 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
         <div className="flex items-center gap-3">
           {!embedded && (
             <button onClick={onBack} title="Back to dashboard"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:scale-105 transition-all">
               <ArrowLeft size={16} />
             </button>
           )}
@@ -184,10 +184,17 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         <SpendTrendChart />
-        <OrderCalendarCard showToast={showToast} />
-        <MaintenanceCalendarCard showToast={showToast} />
+        {/* Spans 2 of 4 columns -- this card carries what used to be
+            two separate calendars' worth of information (orders +
+            maintenance/AMC/warranty events combined, see
+            CombinedCalendarCard.jsx), so it gets more room than a
+            single 1/4-width slot would give it. */}
+        <div className="lg:col-span-2">
+          <CombinedCalendarCard showToast={showToast} />
+        </div>
+        <LocationBreakdownChart />
       </div>
 
       {/* Search + filters */}
@@ -250,12 +257,12 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 pt-2">
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:scale-105 disabled:opacity-40 disabled:hover:scale-100 transition-all">
             <ChevronLeft size={15} />
           </button>
           <span className="text-sm text-slate-500">Page {page} of {totalPages}</span>
           <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:scale-105 disabled:opacity-40 disabled:hover:scale-100 transition-all">
             <ChevronRight size={15} />
           </button>
         </div>
@@ -363,6 +370,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
       </div>
 
       <div className="px-4 pb-3">
+        <CreatorApproverLine item={p} />
         <ApprovalPanel item={p} canApprove={canApprove} onApprove={onApprovePurchase} onReject={onRejectPurchase} />
       </div>
 
