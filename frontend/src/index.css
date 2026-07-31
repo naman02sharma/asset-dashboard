@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* shadcn/ui theme tokens -- values are this app's own brand/slate
+   palette converted to HSL (see tailwind.config.js's color block for
+   which named color each one mirrors), NOT shadcn's generic default
+   theme. Light-only, matching the rest of the app -- no .dark block,
+   since the app has no dark mode. */
+@layer base {
+  :root {
+    --background: 240 50% 99%;        /* slate-50 */
+    --foreground: 244 16% 18%;        /* slate-900 */
+    --card: 0 0% 100%;                /* white */
+    --card-foreground: 244 16% 18%;   /* slate-900 */
+    --popover: 0 0% 100%;             /* white */
+    --popover-foreground: 244 16% 18%;/* slate-900 */
+    --primary: 195 70% 36%;           /* brand-600 */
+    --primary-foreground: 0 0% 100%;  /* white */
+    --secondary: 228 33% 97%;         /* slate-100 */
+    --secondary-foreground: 244 16% 18%; /* slate-900 */
+    --muted: 228 33% 97%;             /* slate-100 */
+    --muted-foreground: 240 2% 54%;   /* slate-500 */
+    --accent: 192 79% 96%;            /* brand-50 */
+    --accent-foreground: 194 71% 27%; /* brand-700 */
+    --destructive: 0 72% 51%;         /* red-600 */
+    --destructive-foreground: 0 0% 100%; /* white */
+    --border: 235 31% 93%;            /* slate-200 */
+    --input: 235 31% 93%;             /* slate-200 */
+    --ring: 194 61% 46%;              /* brand-500 */
+    --radius: 0.75rem;                /* matches the app's rounded-xl convention */
+  }
+}
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
 }

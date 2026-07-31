@@ -15,7 +15,14 @@ import DeleteConfirmModal from './components/DeleteConfirmModal.jsx';
 import HistoryModal from './components/HistoryModal.jsx';
 import AssetLifecyclePage from './components/AssetLifecyclePage.jsx';
 import GlobalSearch from './components/GlobalSearch.jsx';
-import Toast from './components/Toast.jsx';
+import { toast } from 'sonner';
+import { Toaster } from './components/ui/sonner.jsx';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './components/ui/tooltip.jsx';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator,
+} from './components/ui/dropdown-menu.jsx';
+import { Badge } from './components/ui/badge.jsx';
 import ManageUsersModal from './components/ManageUsersModal.jsx';
 import LocationPosPage from './components/LocationPosPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
@@ -126,9 +133,17 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
   const [showAddModal, setShowAddModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null); // purchase pending delete confirmation
-  const [toast, setToast] = useState(null); // { message, type }
+  // Toasts are now handled by sonner (see components/ui/sonner.jsx) --
+  // no local state needed, sonner manages its own queue internally.
 
-  const showToast = useCallback((message, type = 'success') => setToast({ message, type }), []);
+  // Same signature every call site already uses (showToast(message,
+  // type)) -- only the implementation underneath changed, from a
+  // single-slot { message, type } state variable rendered by the old
+  // Toast.jsx, to sonner's own queued/stacked toasts.
+  const showToast = useCallback((message, type = 'success') => {
+    if (type === 'error') toast.error(message);
+    else toast.success(message);
+  }, []);
 
   // Debounce the search box so we're not firing a request per keystroke.
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -435,6 +450,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
   }
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="min-h-screen bg-slate-50 pb-16">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 shadow-sm shadow-slate-200/40 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-5">
@@ -466,85 +482,106 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                 glance (labels show at lg+, icons + tooltips cover the
                 narrower breakpoints where the header was already tight). */}
             <nav className="flex items-center gap-0.5 rounded-xl bg-gradient-to-b from-slate-100 to-slate-100/70 p-1 ring-1 ring-slate-200/60">
-              <button onClick={() => setView(view === 'assets' ? 'dashboard' : 'assets')}
-                title="Assets & Order History"
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  view === 'assets' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
-                }`}>
-                <Boxes size={15} /> <span className="hidden lg:inline">Assets</span>
-              </button>
-              <button onClick={() => setView(view === 'vendors' ? 'dashboard' : 'vendors')}
-                title="Vendor Management"
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  view === 'vendors' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
-                }`}>
-                <Truck size={15} /> <span className="hidden lg:inline">Vendors</span>
-              </button>
-              <button onClick={() => setView(view === 'locations' ? 'dashboard' : 'locations')}
-                title="Location POs"
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  view === 'locations' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
-                }`}>
-                <MapPin size={15} /> <span className="hidden lg:inline">Locations</span>
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button onClick={() => setView(view === 'assets' ? 'dashboard' : 'assets')}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      view === 'assets' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
+                    }`}>
+                    <Boxes size={15} /> <span className="hidden lg:inline">Assets</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Assets & Order History</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button onClick={() => setView(view === 'vendors' ? 'dashboard' : 'vendors')}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      view === 'vendors' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
+                    }`}>
+                    <Truck size={15} /> <span className="hidden lg:inline">Vendors</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Vendor Management</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button onClick={() => setView(view === 'locations' ? 'dashboard' : 'locations')}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      view === 'locations' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
+                    }`}>
+                    <MapPin size={15} /> <span className="hidden lg:inline">Locations</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Location POs</TooltipContent>
+              </Tooltip>
               {isAdmin && (
-                <button onClick={() => setView(view === 'employees' ? 'dashboard' : 'employees')}
-                  title="Employee Status"
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    view === 'employees' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
-                  }`}>
-                  <Contact size={15} /> <span className="hidden lg:inline">HR</span>
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button onClick={() => setView(view === 'employees' ? 'dashboard' : 'employees')}
+                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                        view === 'employees' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
+                      }`}>
+                      <Contact size={15} /> <span className="hidden lg:inline">HR</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Employee Status</TooltipContent>
+                </Tooltip>
               )}
             </nav>
 
             <div className="hidden h-6 w-px bg-slate-200 sm:block" />
 
-            {/* Utility actions -- round icon buttons with a distinct hover
-                treatment so they read as "settings-ish" rather than nav. */}
-            <div className="flex items-center gap-0.5">
-              <button onClick={() => setShowHistory(true)}
-                title="Deleted items"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-slate-700">
-                <Archive size={16} />
-              </button>
-              {isAdmin && (
-                <button onClick={() => setShowManageUsers(true)}
-                  title="Manage users"
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-slate-700">
-                  <Users size={16} />
-                </button>
-              )}
-              <button onClick={() => setShowSettings(true)}
-                title="Notification settings"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-slate-700">
-                <Settings size={16} />
-              </button>
-            </div>
-
-            <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-
-            {/* User identity + logout */}
-            <div className="flex items-center gap-1.5 pl-0.5">
-              <div className="hidden items-center gap-2 sm:flex">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
-                  {(user.name || '?').charAt(0).toUpperCase()}
-                </span>
-                <div className="leading-tight">
-                  <p className="text-sm font-medium text-slate-700">{user.name}</p>
-                  <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                    user.role === 'admin' ? 'bg-brand-100 text-brand-700' : user.role === 'senior' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {user.role === 'admin' ? 'Admin' : user.role === 'senior' ? 'Senior' : 'Employee'}
-                  </span>
-                </div>
-              </div>
-              <button onClick={onLogout}
-                title="Log out"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-all hover:scale-105 hover:bg-red-50 hover:text-red-600">
-                <LogOut size={16} />
-              </button>
-            </div>
+            {/* Everything that isn't primary navigation -- deleted items,
+                manage users, notification settings, and the account
+                itself -- now lives behind one account menu instead of a
+                row of separate icons. Cuts the header down to "nav pills
+                + one avatar", which is the "well organised" ask: fewer
+                floating icons, each action has a real label, and the
+                role/name that used to just sit there as text is now part
+                of a menu that actually does something. */}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition-all hover:scale-105 hover:bg-slate-100">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-xs font-semibold text-white shadow-sm">
+                        {(user.name || '?').charAt(0).toUpperCase()}
+                      </span>
+                      <span className="hidden leading-tight sm:block">
+                        <span className="block text-sm font-medium text-slate-700">{user.name}</span>
+                        <Badge variant={user.role === 'admin' ? 'gradient' : user.role === 'senior' ? 'amber' : 'slate'}>
+                          {user.role === 'admin' ? 'Admin' : user.role === 'senior' ? 'Senior' : 'Employee'}
+                        </Badge>
+                      </span>
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Account menu</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>
+                  <p className="text-sm font-medium text-slate-800">{user.name}</p>
+                  <p className="text-xs font-normal text-slate-400">{user.email}</p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowHistory(true)}>
+                  <Archive size={15} className="text-slate-400" /> Deleted items
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => setShowManageUsers(true)}>
+                    <Users size={15} className="text-slate-400" /> Manage users
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => setShowSettings(true)}>
+                  <Settings size={15} className="text-slate-400" /> Notification settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem destructive onClick={onLogout}>
+                  <LogOut size={15} /> Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -667,8 +704,9 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
         />
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+      <Toaster />
     </div>
+    </TooltipProvider>
   );
 }
 
