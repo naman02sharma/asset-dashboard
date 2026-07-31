@@ -1,4 +1,5 @@
 import { Wallet, CheckCircle2, CalendarClock, Truck, Wrench } from 'lucide-react';
+import { TiltCard } from './ui/tilt-card.jsx';
 
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
@@ -91,18 +92,20 @@ export default function KpiCards({ summary }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
       {cards.map((card) => (
-        <div key={card.label} className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
-          <div className="flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-500">{card.label}</p>
-            <span className={`flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110 ${card.iconBg}`}>
-              <card.icon size={17} strokeWidth={2} />
-            </span>
+        <TiltCard key={card.label}>
+          <div className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
+            <div className="flex items-start justify-between">
+              <p className="text-sm font-medium text-slate-500">{card.label}</p>
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110 ${card.iconBg}`}>
+                <card.icon size={17} strokeWidth={2} />
+              </span>
+            </div>
+            <p className={`mt-2 font-mono text-2xl font-semibold tabular-nums ${card.accent}`}>
+              {card.isCount ? card.value : card.value}
+            </p>
+            {card.meter}
           </div>
-          <p className={`mt-2 font-mono text-2xl font-semibold tabular-nums ${card.accent}`}>
-            {card.isCount ? card.value : card.value}
-          </p>
-          {card.meter}
-        </div>
+        </TiltCard>
       ))}
     </div>
   );

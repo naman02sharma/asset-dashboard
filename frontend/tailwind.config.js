@@ -26,16 +26,23 @@ export default {
           900: '#272635',
           950: '#18171F',
         },
-        // Accent — a saturated blue derived from the palette's sky
-        // swatch (#B1E5F2), which is too pale on its own for readable
-        // buttons/links; kept as brand-100 for soft highlight
-        // backgrounds, with a deeper blue for the interactive states.
+        // Accent — indigo/violet (Round 11 theme change, chosen by
+        // Avs from a 3-way mockup comparison: kept the original
+        // teal-blue as "A", added a teal+coral two-tone as "B", this
+        // indigo direction as "C" -- "C" was picked for a more premium
+        // SaaS feel). Every component references brand-50/100/500/
+        // 600/700 by name rather than a literal hex (confirmed via a
+        // full grep sweep before this change), so this single edit is
+        // the entire color change -- no component files needed
+        // touching. Contrast-checked against WCAG AA for every real
+        // pairing used in the app (white-on-600 buttons, 700-on-50/100
+        // badges, 600-on-white active nav text) before landing.
         brand: {
-          50:  '#EEFAFD',
-          100: '#B1E5F2',
-          500: '#2E9CBE',
-          600: '#1C7E9E',
-          700: '#146178',
+          50:  '#F2F1FB',
+          100: '#D3D1F0',
+          500: '#8A86D5',
+          600: '#5751C2',
+          700: '#3A3597',
         },
         // shadcn/ui's semantic token set (border/input/ring/background/
         // foreground/primary/secondary/muted/accent/destructive/card/
