@@ -16,9 +16,13 @@ const FIELD_CLASS =
  * blocking the ones that ARE eligible), and passes `skippedCount` so
  * that's visible here rather than being a silent surprise.
  */
-export default function BulkAssignModal({ assets, skippedCount = 0, employees, onClose, onSubmit }) {
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+export default function BulkAssignModal({ assets, skippedCount = 0, employees, locations, onClose, onSubmit }) {
   const [employeeName, setEmployeeName] = useState('');
+  const [locationName, setLocationName] = useState('');
   const [department, setDepartment] = useState('');
+  const [startedAt, setStartedAt] = useState(todayIso());
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -26,11 +30,19 @@ export default function BulkAssignModal({ assets, skippedCount = 0, employees, o
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+
+    if (expectedReturnDate && expectedReturnDate < startedAt) {
+      setError('Return date cannot be earlier than the date the asset is assigned.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const result = await onSubmit(assets.map((a) => a.id), {
         employee_name: employeeName,
+        location_name: locationName || null,
         department: department || null,
+        started_at: startedAt,
         expected_return_date: expectedReturnDate || null,
       });
       if (result?.failed > 0) {
@@ -68,7 +80,7 @@ export default function BulkAssignModal({ assets, skippedCount = 0, employees, o
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Employee or department</label>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Employee name</label>
             <input
               required autoFocus list="bulk-employee-suggestions" className={FIELD_CLASS}
               value={employeeName} onChange={(e) => setEmployeeName(e.target.value)}
@@ -79,15 +91,32 @@ export default function BulkAssignModal({ assets, skippedCount = 0, employees, o
             </datalist>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Department (optional)</label>
-            <input className={FIELD_CLASS} value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Engineering" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Location</label>
+              <input list="bulk-location-suggestions" className={FIELD_CLASS} value={locationName}
+                onChange={(e) => setLocationName(e.target.value)} placeholder="Optional" />
+              <datalist id="bulk-location-suggestions">
+                {locations?.map((l) => <option key={l.id} value={l.name} />)}
+              </datalist>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Department</label>
+              <input className={FIELD_CLASS} value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Optional" />
+            </div>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Expected return date (optional)</label>
-            <input type="date" className={FIELD_CLASS} value={expectedReturnDate}
-              onChange={(e) => setExpectedReturnDate(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Date assigned</label>
+              <input required type="date" className={FIELD_CLASS} value={startedAt}
+                onChange={(e) => setStartedAt(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Return date</label>
+              <input type="date" className={FIELD_CLASS} value={expectedReturnDate} min={startedAt || undefined}
+                onChange={(e) => setExpectedReturnDate(e.target.value)} placeholder="Optional" />
+            </div>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

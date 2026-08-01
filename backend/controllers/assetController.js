@@ -223,7 +223,7 @@ export async function listAssets(req, res) {
 
   if (q) {
     params.push(`%${q}%`);
-    clauses.push(`(asset_name ILIKE $${params.length}::text OR vendor_name ILIKE $${params.length}::text OR serial_number ILIKE $${params.length}::text OR asset_tag ILIKE $${params.length}::text OR location ILIKE $${params.length}::text)`);
+    clauses.push(`(asset_name ILIKE $${params.length}::text OR vendor_name ILIKE $${params.length}::text OR serial_number ILIKE $${params.length}::text OR model_number ILIKE $${params.length}::text OR asset_tag ILIKE $${params.length}::text OR location ILIKE $${params.length}::text)`);
   }
   if (status) {
     params.push(status);
@@ -245,6 +245,7 @@ const ASSET_CSV_COLUMNS = [
   { key: 'asset_name', label: 'Asset Name' },
   { key: 'category', label: 'Category' },
   { key: 'serial_number', label: 'Serial Number' },
+  { key: 'model_number', label: 'Model Number' },
   { key: 'asset_tag', label: 'Asset Tag' },
   { key: 'location', label: 'Location' },
   { key: 'vendor_name', label: 'Vendor' },
@@ -276,7 +277,7 @@ export async function exportAssets(req, res) {
 
   if (q) {
     params.push(`%${q}%`);
-    clauses.push(`(asset_name ILIKE $${params.length}::text OR vendor_name ILIKE $${params.length}::text OR serial_number ILIKE $${params.length}::text OR asset_tag ILIKE $${params.length}::text OR location ILIKE $${params.length}::text)`);
+    clauses.push(`(asset_name ILIKE $${params.length}::text OR vendor_name ILIKE $${params.length}::text OR serial_number ILIKE $${params.length}::text OR model_number ILIKE $${params.length}::text OR asset_tag ILIKE $${params.length}::text OR location ILIKE $${params.length}::text)`);
   }
   if (status) {
     params.push(status);
@@ -302,6 +303,7 @@ const IMPORT_COLUMN_MAP = {
   'asset name': 'asset_name',
   'category': 'category',
   'serial number': 'serial_number',
+  'model number': 'model_number',
   'asset tag': 'asset_tag',
   'location': 'location',
   'vendor': 'vendor_name',
@@ -382,11 +384,11 @@ export async function importAssets(req, res) {
       const vendorId = mapped.vendor_name ? await findOrCreateVendor(mapped.vendor_name) : null;
       await pool.query(
         `INSERT INTO assets
-          (asset_name, category, serial_number, asset_tag, location, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
+          (asset_name, category, serial_number, model_number, asset_tag, location, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
            amc_provider, amc_start_date, amc_end_date, amc_cost)
-         VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::uuid,$7::date,$8::numeric,$9::date,$10::int,$11::text,$12::date,$13::date,$14::numeric)`,
+         VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::uuid,$8::date,$9::numeric,$10::date,$11::int,$12::text,$13::date,$14::date,$15::numeric)`,
         [
-          mapped.asset_name.trim(), mapped.category || null, mapped.serial_number || null,
+          mapped.asset_name.trim(), mapped.category || null, mapped.serial_number || null, mapped.model_number || null,
           nullIfEmpty(mapped.asset_tag), mapped.location || null, vendorId,
           nullIfEmpty(mapped.purchase_date), parsedCost, nullIfEmpty(mapped.warranty_expiry), parsedUsefulLife,
           mapped.amc_provider || null, nullIfEmpty(mapped.amc_start_date), nullIfEmpty(mapped.amc_end_date), parsedAmcCost,
@@ -475,7 +477,7 @@ export async function getAssetQrCode(req, res) {
  */
 export async function createAsset(req, res) {
   const {
-    asset_name, category, serial_number, asset_tag, location_name, location_address, location_gst_number, vendor_name, vendor_gst_number, vendor_address, vendor_phone,
+    asset_name, category, serial_number, model_number, asset_tag, location_name, location_address, location_gst_number, vendor_name, vendor_gst_number, vendor_address, vendor_phone,
     purchase_date, cost, warranty_expiry, useful_life_years,
     amc_provider, amc_start_date, amc_end_date, amc_cost,
     requested_by_name, requested_by_phone, po_number,
@@ -519,11 +521,11 @@ export async function createAsset(req, res) {
   try {
     ({ rows } = await pool.query(
       `INSERT INTO assets
-        (asset_name, category, serial_number, asset_tag, location, location_id, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
+        (asset_name, category, serial_number, model_number, asset_tag, location, location_id, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
          amc_provider, amc_start_date, amc_end_date, amc_cost, approval_status, created_by, requested_by_name, requested_by_phone, po_number)
-       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::uuid,$7::uuid,$8::date,$9::numeric,$10::date,$11::int,$12::text,$13::date,$14::date,$15::numeric,'pending',$16::uuid,$17::text,$18::text,$19::text)
+       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::uuid,$8::uuid,$9::date,$10::numeric,$11::date,$12::int,$13::text,$14::date,$15::date,$16::numeric,'pending',$17::uuid,$18::text,$19::text,$20::text)
        RETURNING id`,
-      [asset_name.trim(), category || null, serial_number || null, nullIfEmpty(asset_tag), location_name || null, locationId, vendorId,
+      [asset_name.trim(), category || null, serial_number || null, model_number || null, nullIfEmpty(asset_tag), location_name || null, locationId, vendorId,
        nullIfEmpty(purchase_date), parsedCost, nullIfEmpty(warranty_expiry), parsedUsefulLife,
        amc_provider || null, nullIfEmpty(amc_start_date), nullIfEmpty(amc_end_date), parsedAmcCost,
        req.user?.id || null, requested_by_name.trim(), requested_by_phone.trim(), nullIfEmpty(po_number)]
@@ -576,7 +578,7 @@ export async function approveAsset(req, res) {
 // whitelist (not "every column") so internal bookkeeping fields like
 // updated_at never spam the timeline.
 const TRACKED_FIELDS = [
-  'asset_name', 'category', 'serial_number', 'asset_tag', 'location', 'location_id', 'vendor_id', 'purchase_date', 'cost', 'warranty_expiry',
+  'asset_name', 'category', 'serial_number', 'model_number', 'asset_tag', 'location', 'location_id', 'vendor_id', 'purchase_date', 'cost', 'warranty_expiry',
   'useful_life_years', 'amc_provider', 'amc_start_date', 'amc_end_date', 'amc_cost',
 ];
 
@@ -713,15 +715,27 @@ export async function updateAsset(req, res) {
 }
 
 /**
- * POST /api/assets/:id/assign — { employee_name, department, expected_return_date? }
+ * POST /api/assets/:id/assign — { employee_name, department, location_name, started_at, expected_return_date? }
+ * location_name/department/started_at are all captured as point-in-time
+ * SNAPSHOTS on the holding row (same idea as employee_name_snapshot) —
+ * they record what was true at assignment time and are never rewritten
+ * later, even if the employee's own profile (employees.department)
+ * changes afterward. started_at defaults to today when not given, same
+ * as the column's own DB-level default, but is now settable so a
+ * backdated assignment can be logged accurately.
  * Blocked when status is 'under_repair' or 'retired' (spec requirement).
  */
 export async function assignToEmployee(req, res) {
   const { id } = req.params;
-  const { employee_name, department, expected_return_date } = req.body;
+  const { employee_name, department, location_name, started_at, expected_return_date } = req.body;
 
   if (!employee_name || !employee_name.trim()) {
     return res.status(400).json({ error: 'An employee name is required.' });
+  }
+
+  const assignedDate = nullIfEmpty(started_at) || new Date().toISOString().slice(0, 10);
+  if (expected_return_date && expected_return_date < assignedDate) {
+    return res.status(400).json({ error: 'Return date cannot be earlier than the date the asset is assigned.' });
   }
 
   const client = await pool.connect();
@@ -744,11 +758,13 @@ export async function assignToEmployee(req, res) {
     }
 
     const employeeId = await findOrCreateEmployee(employee_name, department);
+    const locationId = location_name ? await findOrCreateLocation(location_name) : null;
 
     await client.query(
-      `INSERT INTO asset_holdings (asset_id, holder_type, employee_id, employee_name_snapshot, expected_return_date)
-       VALUES ($1::uuid, 'employee', $2::uuid, $3::text, $4::date)`,
-      [id, employeeId, employee_name.trim(), nullIfEmpty(expected_return_date)]
+      `INSERT INTO asset_holdings
+        (asset_id, holder_type, employee_id, employee_name_snapshot, department_snapshot, location_id, location_name_snapshot, started_at, expected_return_date)
+       VALUES ($1::uuid, 'employee', $2::uuid, $3::text, $4::text, $5::uuid, $6::text, $7::date, $8::date)`,
+      [id, employeeId, employee_name.trim(), department || null, locationId, location_name || null, assignedDate, nullIfEmpty(expected_return_date)]
     );
     await client.query(`UPDATE assets SET status = 'in_use', updated_at = now() WHERE id = $1::uuid`, [id]);
 

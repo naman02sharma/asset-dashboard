@@ -10,7 +10,7 @@ const currency = (n) =>
 const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
 const FIELD_LABELS = {
-  asset_name: 'Asset name', category: 'Category', serial_number: 'Serial number', vendor_id: 'Vendor',
+  asset_name: 'Asset name', category: 'Category', serial_number: 'Serial number', model_number: 'Model number', vendor_id: 'Vendor',
   asset_tag: 'Asset tag', location: 'Location',
   purchase_date: 'Purchase date', cost: 'Cost', warranty_expiry: 'Warranty expiry', useful_life_years: 'Useful life (years)',
   amc_provider: 'AMC provider', amc_start_date: 'AMC start date', amc_end_date: 'AMC end date', amc_cost: 'AMC cost',
@@ -82,6 +82,7 @@ export default function AssetDetailDrawer({ assetId, onClose, onEdit, showToast,
             <section className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <Field label="Category" value={data.asset.category} />
               <Field label="Serial number" value={data.asset.serial_number} />
+              <Field label="Model number" value={data.asset.model_number} />
               <Field label="Asset tag" value={data.asset.asset_tag} />
               <Field label="Location" value={data.asset.location} />
               <Field label="Vendor" value={data.asset.vendor_name} />
@@ -164,6 +165,14 @@ function buildTimeline(holdings, changeLog) {
     const who = isEmployee ? h.employee_name_snapshot : h.repair_vendor_name;
     const range = `${dateFmt(h.started_at)} – ${h.returned_at ? dateFmt(h.returned_at) : 'Present'}`;
     let text = isEmployee ? `Assigned to ${who}: ${range}` : `Sent to ${who || 'vendor'} for Repair: ${range}`;
+    // department_snapshot/location_name_snapshot are captured at the
+    // moment of assignment (see migration 020) -- shown here as-is
+    // rather than looked up live, so this line stays accurate even if
+    // the employee's own profile changes later.
+    if (isEmployee && (h.department_snapshot || h.location_name_snapshot)) {
+      const bits = [h.department_snapshot, h.location_name_snapshot].filter(Boolean);
+      text += ` (${bits.join(', ')})`;
+    }
     if (h.returned_at && h.condition_note) text += ` (${h.condition_note})`;
     entries.push({
       key: `h-${h.id}`,

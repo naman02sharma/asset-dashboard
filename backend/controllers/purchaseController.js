@@ -1380,7 +1380,8 @@ export async function recordPartialDelivery(req, res) {
     return res.status(400).json({ error: `Only ${remaining} unit(s) remain undelivered on this purchase.` });
   }
 
-  const deliveryDate = nullIfEmpty(req.body.delivery_date) || new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const deliveryDate = nullIfEmpty(req.body.delivery_date) || today;
   const newDeliveredQty = purchase.delivered_quantity + qty;
   const isFullyDelivered = newDeliveredQty >= purchase.quantity;
   const newStatus = isFullyDelivered ? 'delivered' : 'partially_delivered';
@@ -1395,10 +1396,23 @@ export async function recordPartialDelivery(req, res) {
     [newDeliveredQty, newStatus, isFullyDelivered, deliveryDate, id]
   );
 
+  // BUGFIX: this used to hardcode occurred_at to now() -- discarding
+  // the delivery_date the frontend (RecordDeliveryModal) already
+  // collects and sends on every partial delivery. That meant a
+  // backdated delivery (e.g. "this batch actually arrived last
+  // Tuesday") was recorded with today's date/time on the History
+  // timeline instead of the date actually picked.
+  //
+  // For the common case (no backdating -- deliveryDate is today),
+  // still use now() so same-day multiple partial deliveries on one
+  // purchase keep a real, distinct, sortable time-of-day instead of
+  // all landing on the same midnight timestamp. Only a genuinely
+  // backdated date falls back to midnight on that day, since no real
+  // time is known for it.
   await pool.query(
     `INSERT INTO delivery_events (purchase_id, status, source, note, occurred_at)
-     VALUES ($1::uuid, $2::text, 'manual', $3::text, now())`,
-    [id, newStatus, `${qty} of ${purchase.quantity} unit(s) delivered (${newDeliveredQty} of ${purchase.quantity} total so far)`]
+     VALUES ($1::uuid, $2::text, 'manual', $3::text, CASE WHEN $4::date = CURRENT_DATE THEN now() ELSE $4::date END)`,
+    [id, newStatus, `${qty} of ${purchase.quantity} unit(s) delivered (${newDeliveredQty} of ${purchase.quantity} total so far)`, deliveryDate]
   );
 
   // Auto-link into Inventory: create exactly the newly-delivered units.

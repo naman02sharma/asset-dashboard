@@ -364,6 +364,7 @@ CREATE TABLE assets (
     asset_name          VARCHAR(200) NOT NULL,
     category            VARCHAR(100),
     serial_number       VARCHAR(150),
+    model_number        VARCHAR(150),
     asset_tag           VARCHAR(50) UNIQUE,  -- internal tracking code for physical tagging/scanning — separate from the manufacturer's serial_number
     location            VARCHAR(150),        -- where it physically lives (site/floor/department) — distinct from the employee it might be assigned to
     purchase_id         UUID REFERENCES purchases(id) ON DELETE SET NULL,
@@ -430,6 +431,9 @@ CREATE TABLE asset_holdings (
     holder_type             VARCHAR(20) NOT NULL CHECK (holder_type IN ('employee', 'repair')),
     employee_id             UUID REFERENCES employees(id) ON DELETE SET NULL,
     employee_name_snapshot  VARCHAR(150),
+    department_snapshot     VARCHAR(100),
+    location_id             UUID REFERENCES locations(id) ON DELETE SET NULL,
+    location_name_snapshot  VARCHAR(150),
     repair_vendor_name      VARCHAR(150),
     repair_contact_info     VARCHAR(255),
     started_at              DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -529,7 +533,11 @@ SELECT
     a.rejection_reason,
     a.location_id,
     loc.code                            AS location_code,
-    a.po_number
+    a.po_number,
+    a.model_number,
+    h.department_snapshot                AS current_employee_department,
+    h.location_id                        AS current_holding_location_id,
+    h.location_name_snapshot             AS current_holding_location
 FROM assets a
 LEFT JOIN vendors v ON v.id = a.vendor_id
 LEFT JOIN asset_holdings h ON h.asset_id = a.id AND h.returned_at IS NULL

@@ -21,6 +21,7 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
     asset_name: asset?.asset_name || '',
     category: asset?.category || '',
     serial_number: asset?.serial_number || '',
+    model_number: asset?.model_number || '',
     asset_tag: asset?.asset_tag || '',
     location_name: asset?.location_name || asset?.location || '',
     location_address: asset?.location_address || '',
@@ -237,18 +238,25 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
               onChange={(e) => update('asset_name', e.target.value)} placeholder="e.g. Dell Latitude 5440 (SN: XJ2201)" />
           </div>
 
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Category</label>
+            <input className={FIELD_CLASS} value={form.category}
+              onChange={(e) => update('category', e.target.value)} placeholder="e.g. Laptop" />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Category</label>
-              <input className={FIELD_CLASS} value={form.category}
-                onChange={(e) => update('category', e.target.value)} placeholder="e.g. Laptop" />
-            </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500">Serial number</label>
               <input className={FIELD_CLASS} value={form.serial_number}
                 onChange={(e) => update('serial_number', e.target.value)} placeholder="Optional" />
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Model number</label>
+              <input className={FIELD_CLASS} value={form.model_number}
+                onChange={(e) => update('model_number', e.target.value)} placeholder="Optional" />
+            </div>
           </div>
+          <p className="-mt-2 text-[11px] text-slate-400">Fill in either one — serial number, model number, or both, whichever is on the label.</p>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Asset tag</label>

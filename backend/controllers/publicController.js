@@ -35,8 +35,17 @@ function dateFmt(d) {
 export async function getPublicAssetPage(req, res) {
   const { id } = req.params;
 
+  // BUGFIX: this used to also re-select p.po_number from the
+  // purchases join below. asset_summary's own a.po_number (already
+  // correctly resolved -- see assets.po_number / 019_po_number_
+  // generator.sql) and the joined p.po_number share the same column
+  // name, and since p.po_number was selected SECOND, it silently won
+  // in the resulting row object -- overwriting a perfectly good PO
+  // number with NULL for any asset not linked to a purchase (e.g.
+  // anything created directly via Inventory's "New Asset" form).
+  // Only purchase_description actually needs the join.
   const { rows } = await pool.query(
-    `SELECT a.*, p.po_number, p.description AS purchase_description
+    `SELECT a.*, p.description AS purchase_description
      FROM asset_summary a
      LEFT JOIN purchases p ON p.id = a.purchase_id
      WHERE a.id = $1::uuid`,
@@ -70,6 +79,7 @@ export async function getPublicAssetPage(req, res) {
       <div class="row"><span>PO number</span><strong>${escapeHtml(asset.po_number) || '—'}</strong></div>
       <div class="row"><span>Category</span><strong>${escapeHtml(asset.category) || '—'}</strong></div>
       <div class="row"><span>Serial number</span><strong>${escapeHtml(asset.serial_number) || '—'}</strong></div>
+      <div class="row"><span>Model number</span><strong>${escapeHtml(asset.model_number) || '—'}</strong></div>
       <div class="row"><span>Location</span><strong>${escapeHtml(asset.location) || '—'}</strong></div>
       <div class="row"><span>Vendor</span><strong>${escapeHtml(asset.vendor_name) || '—'}</strong></div>
       <div class="row"><span>Purchase date</span><strong>${dateFmt(asset.purchase_date)}</strong></div>

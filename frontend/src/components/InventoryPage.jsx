@@ -245,7 +245,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
   }
 
   const BULK_CSV_COLUMNS = [
-    ['Asset Name', 'asset_name'], ['Category', 'category'], ['Serial Number', 'serial_number'],
+    ['Asset Name', 'asset_name'], ['Category', 'category'], ['Serial Number', 'serial_number'], ['Model Number', 'model_number'],
     ['Asset Tag', 'asset_tag'], ['Location', 'location'], ['Vendor', 'vendor_name'],
     ['Cost', 'cost'], ['Status', 'status'],
   ];
@@ -470,16 +470,16 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onChange={toggleSelectAll} disabled={assets.length === 0}
                         className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
                     </th>
-                    {['Asset', 'Vendor', 'Location', 'Purchase Date', 'Cost', 'AMC', 'Status', 'Holder', ''].map((h) => (
+                    {['Asset', 'Vendor', 'Location', 'Purchase Date', 'Cost', 'Warranty', 'AMC', 'Status', 'Holder', ''].map((h) => (
                       <th key={h} className="whitespace-nowrap px-4 py-3 font-medium text-slate-500">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && <SkeletonTableRows columns={10} rows={5} />}
+                  {loading && <SkeletonTableRows columns={11} rows={5} />}
                   {!loading && assets.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
+                      <td colSpan={11} className="px-4 py-10 text-center text-slate-400">
                         <p>No assets match your filters.</p>
                         {!query && !statusFilter && (
                           <button onClick={() => setShowAssetForm(true)}
@@ -544,11 +544,11 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
           onClose={() => setEditingAsset(null)} onSubmit={handleEditAsset} />
       )}
       {assignTarget && (
-        <AssignEmployeeModal asset={assignTarget} employees={employees} onClose={() => setAssignTarget(null)} onSubmit={handleAssign} />
+        <AssignEmployeeModal asset={assignTarget} employees={employees} locations={locations} onClose={() => setAssignTarget(null)} onSubmit={handleAssign} />
       )}
       {showBulkAssign && (
         <BulkAssignModal assets={assignableSelectedAssets} skippedCount={selectedAssets.length - assignableSelectedAssets.length}
-          employees={employees} onClose={() => setShowBulkAssign(false)} onSubmit={handleBulkAssign} />
+          employees={employees} locations={locations} onClose={() => setShowBulkAssign(false)} onSubmit={handleBulkAssign} />
       )}
       {maintenanceTarget && (
         <MaintenanceDispatchModal asset={maintenanceTarget} onClose={() => setMaintenanceTarget(null)} onSubmit={handleDispatch} />
@@ -610,7 +610,7 @@ function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, on
             onChange={() => onToggleGroup(group)}
             className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
         </td>
-        <td colSpan={9} className="px-4 py-3">
+        <td colSpan={10} className="px-4 py-3">
           <button onClick={() => setExpanded((e) => !e)} className="flex w-full items-center gap-2.5 text-left">
             {expanded ? <ChevronDown size={14} className="shrink-0 text-brand-600" /> : <ChevronRight size={14} className="shrink-0 text-brand-600" />}
             <Boxes size={15} className="shrink-0 text-brand-600" />
@@ -638,6 +638,29 @@ function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, on
         />
       ))}
     </>
+  );
+}
+
+/**
+ * Warranty column — same color-coded "Active / Expiring soon /
+ * Expired" pattern as AmcStatusCell right below, just for
+ * warranty_expiry instead of amc_end_date. Added alongside the AMC
+ * column rather than replacing it — the two dates are genuinely
+ * different concepts (manufacturer warranty vs. a paid service
+ * contract) and both are now visible at a glance in the table.
+ */
+function WarrantyStatusCell({ asset: a }) {
+  if (!a.warranty_expiry) {
+    return <span className="text-xs text-slate-400">No warranty</span>;
+  }
+  const isExpired = new Date(a.warranty_expiry) < new Date();
+  const tone = isExpired ? 'bg-red-50 text-red-700' : a.is_warranty_expiring_soon ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700';
+  const label = isExpired ? 'Expired' : a.is_warranty_expiring_soon ? 'Expiring soon' : 'Active';
+  return (
+    <div>
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tone}`}>{label}</span>
+      <p className="text-[11px] text-slate-400">until {dateFmt(a.warranty_expiry)}</p>
+    </div>
   );
 }
 
@@ -723,6 +746,7 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
           {canEdit && <AssetModifyEditor asset={a} onSave={onModify} />}
         </div>
       </td>
+      <td className="px-4 py-3"><WarrantyStatusCell asset={a} /></td>
       <td className="px-4 py-3"><AmcStatusCell asset={a} /></td>
       <td className="px-4 py-3"><AssetStatusBadge status={a.status} /></td>
       <td className="px-4 py-3 text-slate-600">{holderLabel || '—'}</td>
