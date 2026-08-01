@@ -258,6 +258,7 @@ export const api = {
   getLocations: () => request('/locations'),
   getLocationsOverview: () => request('/locations/overview'),
   getLocationItems: (id) => request(`/locations/${id}/items`),
+  updateLocation: (id, data) => request(`/locations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // "Generate PO" button (New Asset Purchase AND Inventory's New
   // Asset) -- preview only, nothing is persisted until the actual

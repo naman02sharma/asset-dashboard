@@ -30,6 +30,33 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(201).json({ id: rows[0].id, code });
 }));
 
+// PATCH /locations/:id — edit an existing location's name/address/GST
+// number. Same open-to-any-logged-in-user policy as PATCH /vendors/:id,
+// /purchases/:id, /assets/:id (see requireAdminOrSenior's docstring in
+// middleware/auth.js for why edit itself isn't role-gated) — just
+// authenticateToken, already applied at the router mount in server.js.
+//
+// `code` is deliberately NOT editable here — it's the 3-letter PO-number
+// prefix baked into every PO number already generated for this location
+// (po_<code>_<NN>, see 019_po_number_generator.sql). Changing it
+// wouldn't corrupt anything retroactively (past PO numbers are stored
+// as plain strings, not re-derived live), but it would make an
+// existing location's PO numbers stop matching its own code, which is
+// confusing for no real benefit — nobody asked to rename a code, just
+// to fix a location's name/address/GST like vendors already support.
+router.patch('/:id', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, address, gst_number } = req.body;
+  if (!name) return res.status(400).json({ error: 'Location name is required.' });
+
+  const { rows } = await pool.query(
+    `UPDATE locations SET name = $1, address = $2, gst_number = $3 WHERE id = $4::uuid RETURNING id, name, address, gst_number, code`,
+    [name, address, gst_number, id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Location not found.' });
+  res.json(rows[0]);
+}));
+
 // GET /api/locations/overview — one row per location with purchase/
 // asset counts (including how many are still pending approval) so
 // the new "Location POs" page can show a picker without the frontend

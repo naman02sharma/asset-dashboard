@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, MapPin, Package, Boxes, Search, Loader2, Hash, PackageSearch, Building2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Package, Boxes, Search, Loader2, Hash, PackageSearch, Building2, Pencil } from 'lucide-react';
 import { api } from '../api/api.js';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Badge } from './ui/badge.jsx';
 import { AnimatedNumber } from './ui/animated-number.jsx';
+import LocationFormModal from './LocationFormModal.jsx';
 
 const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
@@ -22,12 +23,13 @@ const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-di
  * would look first.
  */
 export default function LocationPosPage({ onBack, showToast, initialPoQuery = '' }) {
-  const { canApprove } = useAuth();
+  const { canApprove, canEdit } = useAuth();
   const [overview, setOverview] = useState([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null); // { location, purchases, assets }
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(null); // location object | null
 
   const [poQuery, setPoQuery] = useState(initialPoQuery);
   const [poResults, setPoResults] = useState(null); // { purchases, assets } | null
@@ -77,6 +79,23 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
     if (!poQuery.trim()) return;
     const fresh = await api.searchByPoNumber(poQuery.trim()).catch(() => null);
     if (fresh) setPoResults(fresh);
+  }
+  async function refreshOverview() {
+    const fresh = await api.getLocationsOverview().catch(() => null);
+    if (fresh) setOverview(fresh);
+  }
+
+  // Left rail (overview) and the detail banner both show the
+  // location's name/code independently, and PO search results carry
+  // their own location fields too via delivery_location_code -- but
+  // that last one is a snapshot per PO, not worth live-patching here.
+  // Refreshing both overview and the currently-open detail after a
+  // save keeps what's actually on screen in sync without a full page
+  // reload.
+  async function handleUpdateLocation(id, form) {
+    await api.updateLocation(id, form);
+    showToast?.('Location updated.');
+    await Promise.all([refreshOverview(), refreshDetail()]);
   }
 
   async function handleApprovePurchase(id) {
@@ -239,6 +258,12 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
                   <div className="flex items-center gap-2">
                     <p className="text-base font-semibold text-slate-900">{detail.location.name}</p>
                     <Badge variant="brand">{detail.location.code}</Badge>
+                    {canEdit && (
+                      <button onClick={() => setEditingLocation(detail.location)} title="Edit location"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-all hover:scale-105 hover:bg-white hover:text-brand-600">
+                        <Pencil size={15} strokeWidth={2.3} />
+                      </button>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500">{detail.location.address || 'No address on file'}</p>
                 </div>
@@ -342,6 +367,15 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
           </AnimatePresence>
         </div>
       </div>
+
+      {editingLocation && (
+        <LocationFormModal
+          mode="edit"
+          location={editingLocation}
+          onClose={() => setEditingLocation(null)}
+          onSubmit={(form) => handleUpdateLocation(editingLocation.id, form)}
+        />
+      )}
     </main>
   );
 }
