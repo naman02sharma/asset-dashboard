@@ -125,7 +125,8 @@ export default function PurchaseTable({
             )}
 
             {!loading && purchases.map((p) => {
-              const paidPct = p.total_cost > 0 ? Math.min(100, (p.amount_paid / p.total_cost) * 100) : 0;
+              const displayTotal = p.total_cost_with_tax ?? p.total_cost;
+              const paidPct = displayTotal > 0 ? Math.min(100, (p.amount_paid / displayTotal) * 100) : 0;
               return (
                 <tr key={p.id}
                   className={`group border-b border-slate-100 last:border-0 transition-colors duration-200 ${
@@ -159,7 +160,7 @@ export default function PurchaseTable({
                       </button>
                     )}
                   </td>
-                  <td className="px-5 py-4 font-mono tabular-nums text-slate-800">{currency(p.total_cost)}</td>
+                  <td className="px-5 py-4 font-mono tabular-nums text-slate-800">{currency(displayTotal)}</td>
                   <td className="relative px-5 py-4 font-mono tabular-nums text-green-700">
                     <div className="flex items-center gap-1">
                       {currency(p.amount_paid)}

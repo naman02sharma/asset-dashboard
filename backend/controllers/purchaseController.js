@@ -24,7 +24,7 @@ import fs from 'fs';
 import path from 'path';
 
 const SORTABLE_COLUMNS = new Set([
-  'item_name', 'vendor_name', 'total_cost', 'amount_paid',
+  'item_name', 'vendor_name', 'total_cost', 'total_cost_with_tax', 'amount_paid',
   'amount_remaining', 'expected_delivery_date', 'order_status', 'quantity',
   'actual_delivery_date', 'maintenance_date', 'po_number', 'order_date',
 ]);
@@ -152,7 +152,9 @@ const PURCHASE_CSV_COLUMNS = [
   { key: 'quantity', label: 'Quantity' },
   { key: 'delivered_quantity', label: 'Delivered Quantity' },
   { key: 'unit_cost', label: 'Unit Cost' },
-  { key: 'total_cost', label: 'Total Cost' },
+  { key: 'total_cost', label: 'Total Cost (before tax)' },
+  { key: 'tax_percent', label: 'Tax %' },
+  { key: 'total_cost_with_tax', label: 'Total Cost (incl. Tax)' },
   { key: 'amount_paid', label: 'Amount Paid' },
   { key: 'amount_remaining', label: 'Amount Remaining' },
   { key: 'order_status', label: 'Status' },
@@ -271,7 +273,7 @@ export async function getPurchaseHistory(req, res) {
 export async function getPurchaseSummary(req, res) {
   const { rows } = await pool.query(`
     SELECT
-      COALESCE(SUM(total_cost), 0)       AS total_value,
+      COALESCE(SUM(total_cost_with_tax), 0) AS total_value,
       COALESCE(SUM(amount_paid), 0)      AS total_paid,
       COALESCE(SUM(amount_remaining), 0) AS total_remaining,
       COUNT(*) FILTER (WHERE order_status NOT IN ('delivered', 'cancelled')) AS pending_deliveries,
@@ -411,7 +413,7 @@ export async function searchByPoNumber(req, res) {
 export async function createPurchase(req, res) {
   const {
     item_name, po_number, description, vendor_name, vendor_gst_number, vendor_address, vendor_phone,
-    quantity, unit_cost, amount_paid, order_date,
+    quantity, unit_cost, tax_percent, amount_paid, order_date,
     expected_delivery_date, delivery_location_id,
     location_name, location_address, location_gst_number,
     courier_name, tracking_number,
@@ -436,6 +438,13 @@ export async function createPurchase(req, res) {
   if (parsedUnitCost === null) {
     return res.status(400).json({ error: 'Unit cost must be a valid non-negative number.' });
   }
+  let parsedTaxPercent = null;
+  if (nullIfEmpty(tax_percent) !== null) {
+    parsedTaxPercent = parseAmount(tax_percent);
+    if (parsedTaxPercent === null) {
+      return res.status(400).json({ error: 'Tax % must be a valid non-negative number.' });
+    }
+  }
 
   const vendorId = await findOrCreateVendor(vendor_name, {
     gst_number: vendor_gst_number, address: vendor_address, phone: vendor_phone,
@@ -446,12 +455,12 @@ export async function createPurchase(req, res) {
 
   const { rows } = await pool.query(
     `INSERT INTO purchases
-      (item_name, po_number, description, vendor_id, quantity, unit_cost,
+      (item_name, po_number, description, vendor_id, quantity, unit_cost, tax_percent,
        order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number, order_status, delivered_quantity, actual_delivery_date,
        approval_status, created_by, requested_by_name, requested_by_phone)
-     VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date,'pending',$15::uuid,$16::text,$17::text)
+     VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,$7::numeric,COALESCE($8::date, CURRENT_DATE),$9::date,$10::uuid,$11::text,$12::text,$13::text,$14::int,$15::date,'pending',$16::uuid,$17::text,$18::text)
      RETURNING id`,
-    [item_name, po_number || null, description || null, vendorId, parsedQuantity, parsedUnitCost,
+    [item_name, po_number || null, description || null, vendorId, parsedQuantity, parsedUnitCost, parsedTaxPercent,
      nullIfEmpty(order_date), nullIfEmpty(expected_delivery_date), nullIfEmpty(locationId), courier_name || null, tracking_number || null,
      is_delivered ? 'delivered' : 'ordered',
      is_delivered ? parsedQuantity : 0,
@@ -548,6 +557,13 @@ export async function createPurchaseOrder(req, res) {
     if (parsedUnitCost === null) {
       return res.status(400).json({ error: `${label}: unit cost must be a valid non-negative number.` });
     }
+    let parsedTaxPercent = null;
+    if (nullIfEmpty(item.tax_percent) !== null) {
+      parsedTaxPercent = parseAmount(item.tax_percent);
+      if (parsedTaxPercent === null) {
+        return res.status(400).json({ error: `${label}: tax % must be a valid non-negative number.` });
+      }
+    }
     const parsedAmountPaid = item.amount_paid === '' || item.amount_paid == null ? 0 : parseAmount(item.amount_paid);
     if (parsedAmountPaid === null) {
       return res.status(400).json({ error: `${label}: amount paid must be a valid non-negative number.` });
@@ -558,6 +574,7 @@ export async function createPurchaseOrder(req, res) {
       description: item.description || null,
       quantity: parsedQuantity,
       unit_cost: parsedUnitCost,
+      tax_percent: parsedTaxPercent,
       amount_paid: parsedAmountPaid,
     });
   }
@@ -575,13 +592,13 @@ export async function createPurchaseOrder(req, res) {
   for (const item of parsedItems) {
     const { rows } = await pool.query(
       `INSERT INTO purchases
-        (item_name, po_number, description, vendor_id, quantity, unit_cost,
+        (item_name, po_number, description, vendor_id, quantity, unit_cost, tax_percent,
          order_date, expected_delivery_date, delivery_location_id, courier_name, tracking_number,
          order_status, delivered_quantity, actual_delivery_date, purchase_order_id,
          approval_status, created_by, requested_by_name, requested_by_phone)
-       VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,COALESCE($7::date, CURRENT_DATE),$8::date,$9::uuid,$10::text,$11::text,$12::text,$13::int,$14::date,$15::uuid,'pending',$16::uuid,$17::text,$18::text)
+       VALUES ($1::text,$2::text,$3::text,$4::uuid,$5::int,$6::numeric,$7::numeric,COALESCE($8::date, CURRENT_DATE),$9::date,$10::uuid,$11::text,$12::text,$13::text,$14::int,$15::date,$16::uuid,'pending',$17::uuid,$18::text,$19::text)
        RETURNING id`,
-      [item.item_name, item.po_number, item.description, vendorId, item.quantity, item.unit_cost,
+      [item.item_name, item.po_number, item.description, vendorId, item.quantity, item.unit_cost, item.tax_percent,
        nullIfEmpty(order_date), nullIfEmpty(expected_delivery_date), nullIfEmpty(locationId), courier_name || null, tracking_number || null,
        is_delivered ? 'delivered' : 'ordered',
        is_delivered ? item.quantity : 0,
@@ -683,7 +700,7 @@ export async function approvePurchase(req, res) {
 // only ever moved by the delivery flow (recordPartialDelivery /
 // updatePurchaseStatus), never hand-edited.
 const PURCHASE_TRACKED_FIELDS = [
-  'item_name', 'po_number', 'description', 'vendor_id', 'quantity', 'unit_cost',
+  'item_name', 'po_number', 'description', 'vendor_id', 'quantity', 'unit_cost', 'tax_percent',
   'order_date', 'expected_delivery_date', 'delivery_location_id', 'courier_name', 'tracking_number',
 ];
 
@@ -734,6 +751,16 @@ export async function updatePurchase(req, res) {
     const parsed = parseAmount(body.unit_cost);
     if (parsed === null) return res.status(400).json({ error: 'Unit cost must be a valid non-negative number.' });
     body.unit_cost = parsed;
+  }
+  if (body.tax_percent !== undefined) {
+    const normalized = nullIfEmpty(body.tax_percent);
+    if (normalized === null) {
+      body.tax_percent = null;
+    } else {
+      const parsed = parseAmount(normalized);
+      if (parsed === null) return res.status(400).json({ error: 'Tax % must be a valid non-negative number.' });
+      body.tax_percent = parsed;
+    }
   }
   if (body.quantity !== undefined) {
     const n = parseInt(body.quantity, 10);
@@ -1304,7 +1331,7 @@ export async function getSpendTrend(req, res) {
     `SELECT
         to_char(months.month, 'Mon YYYY')       AS label,
         months.month                             AS month_start,
-        COALESCE(SUM(p.total_cost), 0)::numeric  AS total_spend,
+        COALESCE(SUM(p.total_cost_with_tax), 0)::numeric  AS total_spend,
         COUNT(p.id)::int                         AS order_count
      FROM generate_series(
         date_trunc('month', CURRENT_DATE) - ($1::int - 1) * INTERVAL '1 month',

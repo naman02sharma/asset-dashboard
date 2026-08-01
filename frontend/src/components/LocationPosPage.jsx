@@ -290,7 +290,7 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
                                 <Hash size={10} /> {p.po_number}
                               </span>
                             )}
-                            <span className="font-mono text-sm tabular-nums text-slate-700">{currency(p.total_cost)}</span>
+                            <span className="font-mono text-sm tabular-nums text-slate-700">{currency(p.total_cost_with_tax ?? p.total_cost)}</span>
                           </div>
                         </div>
                         <ApprovalPanel item={p} canApprove={canApprove} onApprove={handleApprovePurchase} onReject={handleRejectPurchase} />

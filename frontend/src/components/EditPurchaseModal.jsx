@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X, ChevronDown, ChevronRight } from 'lucide-react';
+
+const currency = (n) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -28,6 +31,7 @@ export default function EditPurchaseModal({ purchase, vendors, locations, onClos
     vendor_phone: '',
     quantity: purchase.quantity || 1,
     unit_cost: purchase.unit_cost ?? '',
+    tax_percent: purchase.tax_percent ?? '',
     order_date: purchase.order_date ? purchase.order_date.slice(0, 10) : '',
     expected_delivery_date: purchase.expected_delivery_date ? purchase.expected_delivery_date.slice(0, 10) : '',
     location_name: purchase.delivery_location || '',
@@ -46,6 +50,14 @@ export default function EditPurchaseModal({ purchase, vendors, locations, onClos
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
+
+  const livePreview = useMemo(() => {
+    const qty = Number(form.quantity) || 0;
+    const unitCost = Number(form.unit_cost) || 0;
+    const taxPct = Number(form.tax_percent) || 0;
+    const subtotal = qty * unitCost;
+    return { subtotal, total: subtotal * (1 + taxPct / 100) };
+  }, [form.quantity, form.unit_cost, form.tax_percent]);
 
   // Uniformity fix: AddPurchaseModal auto-fills vendor details the
   // moment a typed name matches an existing vendor; this editor never
@@ -215,6 +227,19 @@ export default function EditPurchaseModal({ purchase, vendors, locations, onClos
               <label className="mb-1 block text-xs font-medium text-slate-500">Unit cost (₹)</label>
               <input required type="number" min="0" step="0.01" className={FIELD_CLASS} value={form.unit_cost}
                 onChange={(e) => update('unit_cost', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Tax (%)</label>
+              <input type="number" min="0" step="0.01" className={FIELD_CLASS} value={form.tax_percent}
+                onChange={(e) => update('tax_percent', e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="flex flex-col justify-end pb-2 text-right">
+              <p className="text-[11px] text-slate-400">
+                Total{Number(form.tax_percent) > 0 ? ' (incl. tax)' : ''}: <span className="font-mono text-slate-600">{currency(livePreview.total)}</span>
+              </p>
             </div>
           </div>
 

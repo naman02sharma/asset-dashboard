@@ -247,7 +247,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
   const BULK_CSV_COLUMNS = [
     ['Asset Name', 'asset_name'], ['Category', 'category'], ['Serial Number', 'serial_number'], ['Model Number', 'model_number'],
     ['Asset Tag', 'asset_tag'], ['Location', 'location'], ['Vendor', 'vendor_name'],
-    ['Cost', 'cost'], ['Status', 'status'],
+    ['Cost', 'cost'], ['Tax %', 'tax_percent'], ['Cost (incl. Tax)', 'cost_with_tax'], ['Status', 'status'],
   ];
   function escapeCsvField(v) {
     if (v === null || v === undefined) return '';

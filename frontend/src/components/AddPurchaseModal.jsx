@@ -11,7 +11,7 @@ const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
 function blankItem() {
-  return { item_name: '', description: '', quantity: 1, unit_cost: '', amount_paid: '' };
+  return { item_name: '', description: '', quantity: 1, unit_cost: '', tax_percent: '', amount_paid: '' };
 }
 
 /**
@@ -166,10 +166,22 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  const totalCost = useMemo(
+  // Subtotal (pre-tax) and the tax-inclusive total, both summed
+  // across every line item -- each item can carry its own tax rate
+  // (e.g. different GST slabs for different goods in the same order).
+  const subtotal = useMemo(
     () => items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_cost) || 0), 0),
     [items]
   );
+  const taxAmount = useMemo(
+    () => items.reduce((sum, it) => {
+      const lineSubtotal = (Number(it.quantity) || 0) * (Number(it.unit_cost) || 0);
+      const taxPct = Number(it.tax_percent) || 0;
+      return sum + lineSubtotal * (taxPct / 100);
+    }, 0),
+    [items]
+  );
+  const totalCost = subtotal + taxAmount;
   const totalPaid = useMemo(
     () => items.reduce((sum, it) => sum + (Number(it.amount_paid) || 0), 0),
     [items]
@@ -385,9 +397,25 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
                       onChange={(e) => updateItem(index, 'unit_cost', e.target.value)} />
                   </div>
                   <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">Tax (%)</label>
+                    <input type="number" min="0" step="0.01" className={FIELD_CLASS} value={item.tax_percent}
+                      onChange={(e) => updateItem(index, 'tax_percent', e.target.value)} placeholder="Optional" />
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
                     <label className="mb-1 block text-xs font-medium text-slate-500">Paid (₹)</label>
                     <input type="number" min="0" step="0.01" className={FIELD_CLASS} value={item.amount_paid}
                       onChange={(e) => updateItem(index, 'amount_paid', e.target.value)} placeholder="0" />
+                  </div>
+                  <div className="flex flex-col justify-end pb-2">
+                    {Number(item.tax_percent) > 0 && (
+                      <p className="text-right text-[11px] text-slate-400">
+                        Item total: <span className="font-mono text-slate-600">
+                          {currency((Number(item.quantity) || 0) * (Number(item.unit_cost) || 0) * (1 + Number(item.tax_percent) / 100))}
+                        </span>
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -456,8 +484,18 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
               cost / amount paid changes, summed across all items */}
           <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
             <div className="flex justify-between text-slate-500">
-              <span>Total cost{items.length > 1 ? ` (${items.length} items)` : ''}</span>
-              <span className="font-mono tabular-nums text-slate-800">{currency(totalCost)}</span>
+              <span>Subtotal{items.length > 1 ? ` (${items.length} items)` : ''}</span>
+              <span className="font-mono tabular-nums text-slate-800">{currency(subtotal)}</span>
+            </div>
+            {taxAmount > 0 && (
+              <div className="mt-1 flex justify-between text-slate-500">
+                <span>Tax</span>
+                <span className="font-mono tabular-nums text-slate-800">{currency(taxAmount)}</span>
+              </div>
+            )}
+            <div className="mt-1 flex justify-between font-medium text-slate-600">
+              <span>Total cost{taxAmount > 0 ? ' (incl. tax)' : ''}</span>
+              <span className="font-mono tabular-nums text-slate-900">{currency(totalCost)}</span>
             </div>
             <div className="mt-1 flex justify-between text-slate-500">
               <span>Total paid so far</span>

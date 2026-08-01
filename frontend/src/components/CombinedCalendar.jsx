@@ -117,7 +117,7 @@ export default function CombinedCalendar({ showToast }) {
         </div>
         {orders && (
           <p className="text-xs text-slate-400">
-            {orders.length} order{orders.length === 1 ? '' : 's'} · {currency(orders.reduce((s, p) => s + Number(p.total_cost || 0), 0))}
+            {orders.length} order{orders.length === 1 ? '' : 's'} · {currency(orders.reduce((s, p) => s + Number(p.total_cost_with_tax ?? p.total_cost ?? 0), 0))}
           </p>
         )}
       </div>
@@ -204,7 +204,7 @@ export default function CombinedCalendar({ showToast }) {
                             <p className="text-xs text-slate-400">{p.vendor_name}</p>
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className="font-mono text-sm tabular-nums text-slate-600">{currency(p.total_cost)}</p>
+                            <p className="font-mono text-sm tabular-nums text-slate-600">{currency(p.total_cost_with_tax ?? p.total_cost)}</p>
                             <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${s.bg} ${s.text}`}>{s.label}</span>
                           </div>
                         </li>

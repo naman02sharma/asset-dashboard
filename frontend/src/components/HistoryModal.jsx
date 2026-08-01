@@ -88,7 +88,7 @@ export default function HistoryModal({ onClose, onChanged }) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-slate-800">{p.item_name}</p>
                   <p className="text-xs text-slate-400">
-                    {p.vendor_name} · {currency(p.total_cost)} · moved to history {dateFmt(p.archived_at)}
+                    {p.vendor_name} · {currency(p.total_cost_with_tax ?? p.total_cost)} · moved to history {dateFmt(p.archived_at)}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">

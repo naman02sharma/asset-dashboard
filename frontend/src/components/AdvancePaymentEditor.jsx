@@ -73,7 +73,11 @@ export default function AdvancePaymentEditor({ purchase, onSave }) {
   // Showing the true (possibly negative) number, with the label
   // switching to a red "Overpaid by" warning, is what actually gives a
   // typo like that a chance to be noticed before Save.
-  const previewTotal = Number(purchase.total_cost) || 0;
+  //
+  // Uses total_cost_with_tax (falls back to total_cost when there's no
+  // tax on this purchase) — what's actually owed to the vendor
+  // includes tax, so that's the real number "fully paid" should mean.
+  const previewTotal = Number(purchase.total_cost_with_tax ?? purchase.total_cost) || 0;
   const previewPaid = Number.isFinite(Number(draftValue)) ? Number(draftValue) : 0;
   const previewRemaining = previewTotal - previewPaid;
   const isOverpaid = previewRemaining < 0;

@@ -12,7 +12,7 @@ const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-di
 const FIELD_LABELS = {
   asset_name: 'Asset name', category: 'Category', serial_number: 'Serial number', model_number: 'Model number', vendor_id: 'Vendor',
   asset_tag: 'Asset tag', location: 'Location',
-  purchase_date: 'Purchase date', cost: 'Cost', warranty_expiry: 'Warranty expiry', useful_life_years: 'Useful life (years)',
+  purchase_date: 'Purchase date', cost: 'Cost', tax_percent: 'Tax %', warranty_expiry: 'Warranty expiry', useful_life_years: 'Useful life (years)',
   amc_provider: 'AMC provider', amc_start_date: 'AMC start date', amc_end_date: 'AMC end date', amc_cost: 'AMC cost',
   status: 'Status',
 };
@@ -88,6 +88,12 @@ export default function AssetDetailDrawer({ assetId, onClose, onEdit, showToast,
               <Field label="Vendor" value={data.asset.vendor_name} />
               <Field label="Purchase date" value={dateFmt(data.asset.purchase_date)} />
               <Field label="Cost" value={currency(data.asset.cost)} />
+              {Number(data.asset.tax_percent) > 0 && (
+                <>
+                  <Field label="Tax" value={`${data.asset.tax_percent}%`} />
+                  <Field label="Cost incl. tax" value={currency(data.asset.cost_with_tax)} />
+                </>
+              )}
               <Field label="Warranty expiry" value={dateFmt(data.asset.warranty_expiry)} />
               {data.asset.useful_life_years && (
                 <Field label="Current book value"

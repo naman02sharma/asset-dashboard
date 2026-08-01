@@ -732,7 +732,7 @@ function filterAndSortMock(data, q, status, sortBy, sortDir) {
 function computeMockSummary(data) {
   const pending = data.filter((p) => !['delivered', 'cancelled'].includes(p.order_status));
   return {
-    total_value: data.reduce((s, p) => s + p.total_cost, 0),
+    total_value: data.reduce((s, p) => s + (p.total_cost_with_tax ?? p.total_cost), 0),
     total_paid: data.reduce((s, p) => s + p.amount_paid, 0),
     total_remaining: data.reduce((s, p) => s + p.amount_remaining, 0),
     pending_deliveries: pending.length,

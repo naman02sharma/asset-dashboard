@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X, ChevronDown, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/api.js';
+
+const currency = (n) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -32,6 +35,7 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
     vendor_phone: asset?.vendor_phone || '',
     purchase_date: asset?.purchase_date || '',
     cost: asset?.cost ?? '',
+    tax_percent: asset?.tax_percent ?? '',
     warranty_expiry: asset?.warranty_expiry || '',
     useful_life_years: asset?.useful_life_years || '',
     amc_provider: asset?.amc_provider || '',
@@ -75,6 +79,12 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
+
+  const costWithTax = useMemo(() => {
+    const cost = Number(form.cost) || 0;
+    const taxPct = Number(form.tax_percent) || 0;
+    return cost * (1 + taxPct / 100);
+  }, [form.cost, form.tax_percent]);
 
   // Uniformity fix: matches the same "fill in blanks only" autofill
   // AddPurchaseModal/EditPurchaseModal do for their own vendor fields —
@@ -302,6 +312,21 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
               <label className="mb-1 block text-xs font-medium text-slate-500">Cost (₹)</label>
               <input type="number" min="0" step="0.01" className={FIELD_CLASS} value={form.cost}
                 onChange={(e) => update('cost', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Tax (%)</label>
+              <input type="number" min="0" step="0.01" className={FIELD_CLASS} value={form.tax_percent}
+                onChange={(e) => update('tax_percent', e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="flex flex-col justify-end pb-2 text-right">
+              {Number(form.tax_percent) > 0 && (
+                <p className="text-[11px] text-slate-400">
+                  Cost incl. tax: <span className="font-mono text-slate-600">{currency(costWithTax)}</span>
+                </p>
+              )}
             </div>
           </div>
 

@@ -250,7 +250,9 @@ const ASSET_CSV_COLUMNS = [
   { key: 'location', label: 'Location' },
   { key: 'vendor_name', label: 'Vendor' },
   { key: 'purchase_date', label: 'Purchase Date' },
-  { key: 'cost', label: 'Cost' },
+  { key: 'cost', label: 'Cost (before tax)' },
+  { key: 'tax_percent', label: 'Tax %' },
+  { key: 'cost_with_tax', label: 'Cost (incl. Tax)' },
   { key: 'warranty_expiry', label: 'Warranty Expiry' },
   { key: 'useful_life_years', label: 'Useful Life (Years)' },
   { key: 'current_book_value', label: 'Current Book Value' },
@@ -309,6 +311,8 @@ const IMPORT_COLUMN_MAP = {
   'vendor': 'vendor_name',
   'purchase date': 'purchase_date',
   'cost': 'cost',
+  'tax percent': 'tax_percent',
+  'tax %': 'tax_percent',
   'warranty expiry': 'warranty_expiry',
   'useful life (years)': 'useful_life_years',
   'amc provider': 'amc_provider',
@@ -370,6 +374,11 @@ export async function importAssets(req, res) {
       results.push({ row: rowNumber, success: false, error: 'Invalid AMC Cost value.' });
       continue;
     }
+    const parsedTaxPercent = parseAmount(mapped.tax_percent);
+    if (parsedTaxPercent === undefined) {
+      results.push({ row: rowNumber, success: false, error: 'Invalid Tax % value.' });
+      continue;
+    }
     let parsedUsefulLife = null;
     if (mapped.useful_life_years) {
       const n = parseInt(mapped.useful_life_years, 10);
@@ -384,13 +393,13 @@ export async function importAssets(req, res) {
       const vendorId = mapped.vendor_name ? await findOrCreateVendor(mapped.vendor_name) : null;
       await pool.query(
         `INSERT INTO assets
-          (asset_name, category, serial_number, model_number, asset_tag, location, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
+          (asset_name, category, serial_number, model_number, asset_tag, location, vendor_id, purchase_date, cost, tax_percent, warranty_expiry, useful_life_years,
            amc_provider, amc_start_date, amc_end_date, amc_cost)
-         VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::uuid,$8::date,$9::numeric,$10::date,$11::int,$12::text,$13::date,$14::date,$15::numeric)`,
+         VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::uuid,$8::date,$9::numeric,$10::numeric,$11::date,$12::int,$13::text,$14::date,$15::date,$16::numeric)`,
         [
           mapped.asset_name.trim(), mapped.category || null, mapped.serial_number || null, mapped.model_number || null,
           nullIfEmpty(mapped.asset_tag), mapped.location || null, vendorId,
-          nullIfEmpty(mapped.purchase_date), parsedCost, nullIfEmpty(mapped.warranty_expiry), parsedUsefulLife,
+          nullIfEmpty(mapped.purchase_date), parsedCost, parsedTaxPercent, nullIfEmpty(mapped.warranty_expiry), parsedUsefulLife,
           mapped.amc_provider || null, nullIfEmpty(mapped.amc_start_date), nullIfEmpty(mapped.amc_end_date), parsedAmcCost,
         ]
       );
@@ -478,7 +487,7 @@ export async function getAssetQrCode(req, res) {
 export async function createAsset(req, res) {
   const {
     asset_name, category, serial_number, model_number, asset_tag, location_name, location_address, location_gst_number, vendor_name, vendor_gst_number, vendor_address, vendor_phone,
-    purchase_date, cost, warranty_expiry, useful_life_years,
+    purchase_date, cost, tax_percent, warranty_expiry, useful_life_years,
     amc_provider, amc_start_date, amc_end_date, amc_cost,
     requested_by_name, requested_by_phone, po_number,
   } = req.body;
@@ -497,6 +506,8 @@ export async function createAsset(req, res) {
   if (parsedCost === undefined) return res.status(400).json({ error: 'Cost must be a valid non-negative number.' });
   const parsedAmcCost = parseAmount(amc_cost);
   if (parsedAmcCost === undefined) return res.status(400).json({ error: 'AMC cost must be a valid non-negative number.' });
+  const parsedTaxPercent = parseAmount(tax_percent);
+  if (parsedTaxPercent === undefined) return res.status(400).json({ error: 'Tax % must be a valid non-negative number.' });
 
   let parsedUsefulLife = null;
   if (nullIfEmpty(useful_life_years) !== null) {
@@ -521,12 +532,12 @@ export async function createAsset(req, res) {
   try {
     ({ rows } = await pool.query(
       `INSERT INTO assets
-        (asset_name, category, serial_number, model_number, asset_tag, location, location_id, vendor_id, purchase_date, cost, warranty_expiry, useful_life_years,
+        (asset_name, category, serial_number, model_number, asset_tag, location, location_id, vendor_id, purchase_date, cost, tax_percent, warranty_expiry, useful_life_years,
          amc_provider, amc_start_date, amc_end_date, amc_cost, approval_status, created_by, requested_by_name, requested_by_phone, po_number)
-       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::uuid,$8::uuid,$9::date,$10::numeric,$11::date,$12::int,$13::text,$14::date,$15::date,$16::numeric,'pending',$17::uuid,$18::text,$19::text,$20::text)
+       VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::uuid,$8::uuid,$9::date,$10::numeric,$11::numeric,$12::date,$13::int,$14::text,$15::date,$16::date,$17::numeric,'pending',$18::uuid,$19::text,$20::text,$21::text)
        RETURNING id`,
       [asset_name.trim(), category || null, serial_number || null, model_number || null, nullIfEmpty(asset_tag), location_name || null, locationId, vendorId,
-       nullIfEmpty(purchase_date), parsedCost, nullIfEmpty(warranty_expiry), parsedUsefulLife,
+       nullIfEmpty(purchase_date), parsedCost, parsedTaxPercent, nullIfEmpty(warranty_expiry), parsedUsefulLife,
        amc_provider || null, nullIfEmpty(amc_start_date), nullIfEmpty(amc_end_date), parsedAmcCost,
        req.user?.id || null, requested_by_name.trim(), requested_by_phone.trim(), nullIfEmpty(po_number)]
     ));
@@ -578,7 +589,7 @@ export async function approveAsset(req, res) {
 // whitelist (not "every column") so internal bookkeeping fields like
 // updated_at never spam the timeline.
 const TRACKED_FIELDS = [
-  'asset_name', 'category', 'serial_number', 'model_number', 'asset_tag', 'location', 'location_id', 'vendor_id', 'purchase_date', 'cost', 'warranty_expiry',
+  'asset_name', 'category', 'serial_number', 'model_number', 'asset_tag', 'location', 'location_id', 'vendor_id', 'purchase_date', 'cost', 'tax_percent', 'warranty_expiry',
   'useful_life_years', 'amc_provider', 'amc_start_date', 'amc_end_date', 'amc_cost',
 ];
 
@@ -618,6 +629,11 @@ export async function updateAsset(req, res) {
     const parsed = parseAmount(body.amc_cost);
     if (parsed === undefined) return res.status(400).json({ error: 'AMC cost must be a valid non-negative number.' });
     body.amc_cost = parsed;
+  }
+  if (body.tax_percent !== undefined) {
+    const parsed = parseAmount(body.tax_percent);
+    if (parsed === undefined) return res.status(400).json({ error: 'Tax % must be a valid non-negative number.' });
+    body.tax_percent = parsed;
   }
   for (const dateField of ['purchase_date', 'warranty_expiry', 'amc_start_date', 'amc_end_date']) {
     if (body[dateField] !== undefined) body[dateField] = nullIfEmpty(body[dateField]);
@@ -659,7 +675,7 @@ export async function updateAsset(req, res) {
     const setClauses = [];
     const values = [];
     const logEntries = [];
-    const NUMERIC_FIELDS = new Set(['cost', 'amc_cost']);
+    const NUMERIC_FIELDS = new Set(['cost', 'amc_cost', 'tax_percent']);
 
     for (const field of TRACKED_FIELDS) {
       if (body[field] === undefined) continue;

@@ -64,6 +64,8 @@ CREATE TABLE purchases (
                              -- creates that many new linked assets rather than waiting for the whole order.
     unit_cost               NUMERIC(12,2) NOT NULL CHECK (unit_cost >= 0),
     total_cost              NUMERIC(12,2) GENERATED ALWAYS AS (quantity * unit_cost) STORED,
+    tax_percent             NUMERIC(5,2) CHECK (tax_percent IS NULL OR tax_percent >= 0),
+    total_cost_with_tax     NUMERIC(12,2) GENERATED ALWAYS AS (ROUND(quantity * unit_cost * (1 + COALESCE(tax_percent, 0) / 100), 2)) STORED,
 
     order_status            VARCHAR(30) NOT NULL DEFAULT 'ordered'
                              CHECK (order_status IN (
@@ -279,7 +281,7 @@ SELECT
     p.unit_cost,
     p.total_cost,
     COALESCE(pay.amount_paid, 0)                          AS amount_paid,
-    p.total_cost - COALESCE(pay.amount_paid, 0)            AS amount_remaining,
+    p.total_cost_with_tax - COALESCE(pay.amount_paid, 0)   AS amount_remaining,
     p.order_status,
     p.order_date,
     p.expected_delivery_date,
@@ -296,7 +298,7 @@ SELECT
     (p.expected_delivery_date IS NOT NULL
         AND p.expected_delivery_date < CURRENT_DATE
         AND p.order_status NOT IN ('delivered', 'cancelled'))  AS is_overdue,
-    (p.total_cost - COALESCE(pay.amount_paid, 0)) > 0          AS has_balance_due,
+    (p.total_cost_with_tax - COALESCE(pay.amount_paid, 0)) > 0 AS has_balance_due,
     p.archived_at,
     p.updated_at,
     p.maintenance_date,
@@ -324,7 +326,9 @@ SELECT
     p.approved_at,
     p.rejection_reason,
     p.delivery_location_id,
-    l.code                              AS delivery_location_code
+    l.code                              AS delivery_location_code,
+    p.tax_percent,
+    p.total_cost_with_tax
 FROM purchases p
 JOIN vendors v ON v.id = p.vendor_id
 LEFT JOIN locations l ON l.id = p.delivery_location_id
@@ -371,6 +375,8 @@ CREATE TABLE assets (
     vendor_id           UUID REFERENCES vendors(id) ON DELETE RESTRICT,
     purchase_date       DATE,
     cost                NUMERIC(12,2) CHECK (cost IS NULL OR cost >= 0),
+    tax_percent         NUMERIC(5,2) CHECK (tax_percent IS NULL OR tax_percent >= 0),
+    cost_with_tax       NUMERIC(12,2) GENERATED ALWAYS AS (ROUND(cost * (1 + COALESCE(tax_percent, 0) / 100), 2)) STORED,
     warranty_expiry     DATE,
     useful_life_years   INTEGER CHECK (useful_life_years IS NULL OR useful_life_years > 0),
                          -- straight-line depreciation assumption; NULL = "not depreciated/tracked" (current_book_value stays NULL in asset_summary)
@@ -537,7 +543,9 @@ SELECT
     a.model_number,
     h.department_snapshot                AS current_employee_department,
     h.location_id                        AS current_holding_location_id,
-    h.location_name_snapshot             AS current_holding_location
+    h.location_name_snapshot             AS current_holding_location,
+    a.tax_percent,
+    a.cost_with_tax
 FROM assets a
 LEFT JOIN vendors v ON v.id = a.vendor_id
 LEFT JOIN asset_holdings h ON h.asset_id = a.id AND h.returned_at IS NULL

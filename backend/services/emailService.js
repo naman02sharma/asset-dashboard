@@ -33,7 +33,7 @@ export function buildEmailContent(triggerType, purchase, extra = {}) {
       html: `
         <p><strong>${purchase.item_name}</strong> (Vendor: ${purchase.vendor_name}) status changed
         from <strong>${extra.previousStatus}</strong> to <strong>${purchase.order_status}</strong>.</p>
-        <p>Quantity: ${purchase.quantity} · Total cost: ₹${Number(purchase.total_cost).toLocaleString('en-IN')}</p>
+        <p>Quantity: ${purchase.quantity} · Total cost: ₹${Number(purchase.total_cost_with_tax ?? purchase.total_cost).toLocaleString('en-IN')}</p>
       `,
     },
     delivery_date_change: {
@@ -51,7 +51,7 @@ export function buildEmailContent(triggerType, purchase, extra = {}) {
         <p>A payment of <strong>₹${Number(extra.paymentAmount).toLocaleString('en-IN')}</strong>
         was recorded for <strong>${purchase.item_name}</strong> (Vendor: ${purchase.vendor_name}).</p>
         <p>Total paid: ₹${Number(purchase.amount_paid).toLocaleString('en-IN')} of
-        ₹${Number(purchase.total_cost).toLocaleString('en-IN')}
+        ₹${Number(purchase.total_cost_with_tax ?? purchase.total_cost).toLocaleString('en-IN')}
         (Remaining: ₹${Number(purchase.amount_remaining).toLocaleString('en-IN')})</p>
       `,
     },

@@ -33,7 +33,7 @@ export default function MonthPurchasesModal({ month, label, onClose }) {
     return () => { document.body.style.overflow = previousOverflow; };
   }, []);
 
-  const total = rows?.reduce((sum, p) => sum + Number(p.total_cost || 0), 0) || 0;
+  const total = rows?.reduce((sum, p) => sum + Number(p.total_cost_with_tax ?? p.total_cost ?? 0), 0) || 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-[fadeIn_0.15s_ease-out]"
@@ -68,7 +68,7 @@ export default function MonthPurchasesModal({ month, label, onClose }) {
                     <p className="truncate text-sm font-medium text-slate-700">{p.item_name}</p>
                     <p className="text-xs text-slate-400">{p.vendor_name} · {dateFmt(p.order_date)}</p>
                   </div>
-                  <p className="shrink-0 font-mono text-sm tabular-nums text-slate-600">{currency(p.total_cost)}</p>
+                  <p className="shrink-0 font-mono text-sm tabular-nums text-slate-600">{currency(p.total_cost_with_tax ?? p.total_cost)}</p>
                 </li>
               ))}
             </ul>

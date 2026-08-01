@@ -321,7 +321,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
           </p>
         </button>
         <div className="relative flex items-center gap-1">
-          <p className="font-mono text-sm tabular-nums text-slate-700">{currency(p.total_cost)}</p>
+          <p className="font-mono text-sm tabular-nums text-slate-700">{currency(p.total_cost_with_tax ?? p.total_cost)}</p>
           {/* Delivered but not fully paid — the same "Modify" control
               used on the Home Dashboard, so payment corrections don't
               require reopening a delivered purchase's status. Saving
@@ -443,7 +443,7 @@ function ExpandedDetails({ purchase: p, onUpdated, showToast, onUploadPhotos, on
         <p><span className="font-medium text-slate-600">Vendor address:</span> {p.vendor_address || '—'}</p>
         <p><span className="font-medium text-slate-600">Vendor phone:</span> {p.vendor_phone || '—'}</p>
         <p><span className="font-medium text-slate-600">Location GST:</span> {p.delivery_location_gst_number || '—'}</p>
-        <p><span className="font-medium text-slate-600">Paid:</span> {currency(p.amount_paid)} of {currency(p.total_cost)}</p>
+        <p><span className="font-medium text-slate-600">Paid:</span> {currency(p.amount_paid)} of {currency(p.total_cost_with_tax ?? p.total_cost)}</p>
         <div className="pt-1.5">
           <p className="mb-1 font-medium text-slate-600">Insurance &amp; invoice files:</p>
           <FilesCell purchase={p} onToggleInsurance={onInsuranceToggle}
