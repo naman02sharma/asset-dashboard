@@ -232,26 +232,26 @@ export default function PurchaseTable({
                       <button
                         onClick={() => setHistoryTarget(p)}
                         title="View history"
-                        className="rounded-lg p-2 text-slate-300 opacity-0 transition-all hover:bg-slate-100 hover:text-brand-600 group-hover:opacity-100"
+                        className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600"
                       >
-                        <History size={15} />
+                        <History size={17} strokeWidth={2.3} />
                       </button>
                       {canEdit && onEditPurchase && (
                         <button
                           onClick={() => setEditTarget(p)}
                           title="Edit purchase"
-                          className="rounded-lg p-2 text-slate-300 opacity-0 transition-all hover:bg-slate-100 hover:text-brand-600 group-hover:opacity-100"
+                          className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600"
                         >
-                          <Pencil size={15} />
+                          <Pencil size={17} strokeWidth={2.3} />
                         </button>
                       )}
                       {isAdmin && (
                         <button
                           onClick={() => onDeleteClick(p)}
                           title="Delete purchase"
-                          className="rounded-lg p-2 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                          className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-red-50 hover:text-red-600"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={17} strokeWidth={2.3} />
                         </button>
                       )}
                     </div>

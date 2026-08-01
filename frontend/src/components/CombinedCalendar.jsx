@@ -148,9 +148,9 @@ export default function CombinedCalendar({ showToast }) {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400"><Loader2 className="mr-2 animate-spin" size={18} /> Loading…</div>
       ) : (
-        <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white transition-opacity duration-150 ${monthLoading ? 'opacity-60' : 'opacity-100'}`}>
+        <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white transition-opacity duration-300 ease-out ${monthLoading ? 'opacity-80' : 'opacity-100'}`}>
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/60 text-center text-xs font-medium text-slate-500">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d} className="py-2">{d}</div>)}
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d} className="py-1.5">{d}</div>)}
           </div>
           <div className="grid grid-cols-7">
             {days.map((day) => {
@@ -165,20 +165,20 @@ export default function CombinedCalendar({ showToast }) {
               ];
               return (
                 <button key={iso} type="button" onClick={() => hasAny && setSelectedDay(iso)}
-                  className={`min-h-[96px] border-b border-r border-slate-100 p-1.5 text-left last:border-r-0 transition-colors ${
+                  className={`min-h-[68px] border-b border-r border-slate-100 p-1 text-left last:border-r-0 transition-colors ${
                     inMonth ? 'hover:bg-slate-50' : 'bg-slate-50/40'
                   } ${hasAny ? 'cursor-pointer' : 'cursor-default'}`}>
-                  <p className={`text-xs ${iso === today ? 'flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 font-semibold text-white' : inMonth ? 'text-slate-600' : 'text-slate-300'}`}>
+                  <p className={`text-[11px] ${iso === today ? 'flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 font-semibold text-white' : inMonth ? 'text-slate-600' : 'text-slate-300'}`}>
                     {day.getDate()}
                   </p>
-                  <div className="mt-1 space-y-0.5">
-                    {combined.slice(0, 3).map((item) => (
+                  <div className="mt-0.5 space-y-0.5">
+                    {combined.slice(0, 2).map((item) => (
                       <p key={item.key} title={`${item.label} — ${item.style.label}`}
                         className={`truncate rounded px-1 py-0.5 text-[10px] ${item.style.bg} ${item.style.text}`}>
                         {item.label}
                       </p>
                     ))}
-                    {combined.length > 3 && <p className="text-[10px] text-slate-400">+{combined.length - 3} more</p>}
+                    {combined.length > 2 && <p className="text-[10px] text-slate-400">+{combined.length - 2} more</p>}
                   </div>
                 </button>
               );

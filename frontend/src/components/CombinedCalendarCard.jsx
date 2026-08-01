@@ -82,7 +82,7 @@ export default function CombinedCalendarCard({ showToast }) {
       {showFull && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-[fadeIn_0.15s_ease-out]"
           onMouseDown={(ev) => { if (ev.target === ev.currentTarget) setShowFull(false); }}>
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl animate-[scaleIn_0.15s_ease-out]">
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl animate-[scaleIn_0.15s_ease-out]">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-900">Calendar</h2>
               <button onClick={() => setShowFull(false)} title="Close" className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600">
