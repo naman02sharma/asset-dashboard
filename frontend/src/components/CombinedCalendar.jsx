@@ -43,15 +43,23 @@ export default function CombinedCalendar({ showToast }) {
   const [anchor, setAnchor] = useState(new Date());
   const [orders, setOrders] = useState(null);
   const [events, setEvents] = useState(null);
+  const [monthLoading, setMonthLoading] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
 
+  // Month navigation no longer nulls out `orders` -- doing so used to
+  // flip the full-page `loading` gate back to true on every prev/next
+  // click, unmounting the whole grid in favor of a spinner and then
+  // remounting it a moment later (the "flicker"). Now the previous
+  // month's grid stays on screen (dimmed) while `monthLoading` is
+  // true, and swaps in place once the new month's data arrives.
   useEffect(() => {
     let cancelled = false;
-    setOrders(null);
+    setMonthLoading(true);
     setSelectedDay(null);
     api.getPurchasesByMonth(toISO(anchor))
       .then((data) => { if (!cancelled) setOrders(data); })
-      .catch((err) => { if (!cancelled) showToast(err.message, 'error'); });
+      .catch((err) => { if (!cancelled) showToast(err.message, 'error'); })
+      .finally(() => { if (!cancelled) setMonthLoading(false); });
     return () => { cancelled = true; };
   }, [anchor.getFullYear(), anchor.getMonth()]);
 
@@ -102,16 +110,17 @@ export default function CombinedCalendar({ showToast }) {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button onClick={() => shift(-1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-all hover:scale-105 hover:bg-slate-50">
-            <ChevronLeft size={15} />
+          <button onClick={() => shift(-1)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-all hover:scale-105 hover:bg-slate-50">
+            <ChevronLeft size={17} strokeWidth={2.4} />
           </button>
-          <p className="w-40 text-center text-sm font-medium text-slate-700">
+          <p className="w-40 text-center text-sm font-semibold text-slate-700 inline-flex items-center justify-center gap-1.5">
             {anchor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            {monthLoading && <Loader2 size={12} className="animate-spin text-slate-300" />}
           </p>
-          <button onClick={() => shift(1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-all hover:scale-105 hover:bg-slate-50">
-            <ChevronRight size={15} />
+          <button onClick={() => shift(1)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-all hover:scale-105 hover:bg-slate-50">
+            <ChevronRight size={17} strokeWidth={2.4} />
           </button>
-          <button onClick={() => setAnchor(new Date())} className="ml-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 transition-colors hover:bg-slate-50">
+          <button onClick={() => setAnchor(new Date())} className="ml-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50">
             Today
           </button>
         </div>
@@ -139,7 +148,7 @@ export default function CombinedCalendar({ showToast }) {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400"><Loader2 className="mr-2 animate-spin" size={18} /> Loading…</div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white transition-opacity duration-150 ${monthLoading ? 'opacity-60' : 'opacity-100'}`}>
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/60 text-center text-xs font-medium text-slate-500">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d} className="py-2">{d}</div>)}
           </div>

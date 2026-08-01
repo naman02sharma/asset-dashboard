@@ -39,8 +39,8 @@ export default {
         // slightly versus the screenshot's literal color so white
         // button text stays comfortably readable.
         brand: {
-          50:  '#EDF8F4',
-          100: '#C6ECDE',
+          50:  '#E3F7F0',
+          100: '#B6ECD8',
           500: '#259D71',
           600: '#1B7453',
           700: '#13533B',
@@ -58,8 +58,8 @@ export default {
         // concept from the Senior role and shouldn't be visually
         // conflated with it.
         coral: {
-          50:  '#F8E8E2',
-          100: '#F2CDC0',
+          50:  '#FBE3DA',
+          100: '#F5B9A3',
           500: '#E77C55',
           600: '#DF5320',
           700: '#A13C17',

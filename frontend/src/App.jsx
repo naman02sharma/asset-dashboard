@@ -489,7 +489,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                     className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                       view === 'assets' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                     }`}>
-                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><Boxes size={15} /></motion.span> <span className="hidden lg:inline">Assets</span>
+                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><Boxes size={17} strokeWidth={2.3} /></motion.span> <span className="hidden lg:inline">Assets</span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Assets & Order History</TooltipContent>
@@ -500,7 +500,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                     className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                       view === 'vendors' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                     }`}>
-                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><Truck size={15} /></motion.span> <span className="hidden lg:inline">Vendors</span>
+                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><Truck size={17} strokeWidth={2.3} /></motion.span> <span className="hidden lg:inline">Vendors</span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Vendor Management</TooltipContent>
@@ -511,7 +511,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                     className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                       view === 'locations' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                     }`}>
-                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><MapPin size={15} /></motion.span> <span className="hidden lg:inline">Locations</span>
+                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><MapPin size={17} strokeWidth={2.3} /></motion.span> <span className="hidden lg:inline">Locations</span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Location POs</TooltipContent>
@@ -523,7 +523,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                       className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                         view === 'employees' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                       }`}>
-                      <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><Contact size={15} /></motion.span> <span className="hidden lg:inline">HR</span>
+                      <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><Contact size={17} strokeWidth={2.3} /></motion.span> <span className="hidden lg:inline">HR</span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>Employee Status</TooltipContent>

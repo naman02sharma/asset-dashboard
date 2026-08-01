@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowLeft, Search, Plus, UserPlus, RotateCcw, Wrench, Archive, RefreshCw, Download, Loader2, Link2, ChevronDown, ChevronRight, Boxes, UploadCloud, QrCode, Trash2 } from 'lucide-react';
+import { ArrowLeft, Search, Plus, UserPlus, RotateCcw, Wrench, Archive, RefreshCw, Download, Loader2, Link2, ChevronDown, ChevronRight, Boxes, UploadCloud, QrCode, Trash2, Pencil } from 'lucide-react';
 import { api } from '../api/api.js';
 import AssetStatusBadge, { ASSET_STATUS_STYLES } from './AssetStatusBadge.jsx';
 import AssetFormModal from './AssetFormModal.jsx';
@@ -500,6 +500,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onRetire={(a) => handleRetire(a)}
                         onRestore={(a) => handleRestore(a)}
                         onDelete={(a) => handleDeleteAsset(a)}
+                        onEdit={(a) => setEditingAsset(a)}
                         onModify={handleQuickModify}
                         onApprove={handleApproveAsset}
                         onReject={handleRejectAsset}
@@ -516,6 +517,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onRetire={() => handleRetire(group[0])}
                         onRestore={() => handleRestore(group[0])}
                         onDelete={() => handleDeleteAsset(group[0])}
+                        onEdit={() => setEditingAsset(group[0])}
                         onModify={handleQuickModify}
                         onApprove={handleApproveAsset}
                         onReject={handleRejectAsset}
@@ -588,7 +590,7 @@ function StatCard({ label, value, accent = 'text-slate-900', alert = false }) {
  * of the ten" to an employee is simply expanding and picking that
  * row — no special-cased partial-assignment logic needed anywhere).
  */
-function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onModify, onApprove, onReject, selectedIds, onToggleAsset, onToggleGroup }) {
+function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, selectedIds, onToggleAsset, onToggleGroup }) {
   const [expanded, setExpanded] = useState(false);
   const first = group[0];
   const allSelected = group.every((a) => selectedIds.has(a.id));
@@ -630,6 +632,7 @@ function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, on
           onRetire={() => onRetire(a)}
           onRestore={() => onRestore(a)}
           onDelete={() => onDelete(a)}
+          onEdit={() => onEdit(a)}
           onModify={onModify}
           onApprove={onApprove}
           onReject={onReject}
@@ -688,7 +691,7 @@ function AmcStatusCell({ asset: a }) {
   );
 }
 
-function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onModify, onApprove, onReject, nested = false, selected = false, onToggleSelect }) {
+function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, nested = false, selected = false, onToggleSelect }) {
   const { canEdit, isAdmin, canApprove } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const holderLabel = a.status === 'in_use' ? a.current_employee_name
@@ -771,13 +774,14 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
           {a.status === 'retired' && canEdit && (
             <IconAction icon={RefreshCw} label="Restore to Available" onClick={onRestore} />
           )}
+          {canEdit && <IconAction icon={Pencil} label="Edit" onClick={onEdit} />}
           {isAdmin && (
             <button onClick={handleDeleteClick}
               title={confirmingDelete ? 'Click again to confirm — this cannot be undone' : 'Delete permanently'}
-              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
                 confirmingDelete ? 'bg-red-600 text-white hover:bg-red-700' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
               }`}>
-              <Trash2 size={14} />
+              <Trash2 size={16} strokeWidth={2.3} />
             </button>
           )}
         </div>
@@ -789,8 +793,8 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
 function IconAction({ icon: Icon, label, onClick }) {
   return (
     <button onClick={onClick} title={label}
-      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
-      <Icon size={14} />
+      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
+      <Icon size={16} strokeWidth={2.3} />
     </button>
   );
 }
