@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { X, ChevronDown, ChevronRight, Camera, FileText, ShieldCheck, Plus, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Camera, FileText, ShieldCheck, Plus, Trash2, Sparkles, Loader2, Pencil, Check } from 'lucide-react';
 import FileDropZone from './FileDropZone.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/api.js';
@@ -73,6 +73,8 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
   const [poGenerating, setPoGenerating] = useState(false);
   const [poLocationCode, setPoLocationCode] = useState('');
   const [poGeneratedFor, setPoGeneratedFor] = useState(''); // which location name the current po_number was generated for
+  const [poEditable, setPoEditable] = useState(false); // true while the user is manually typing a PO number instead of using the generated one
+  const [poManualOverride, setPoManualOverride] = useState(false); // true once the user has actually hand-edited the generated value
 
   async function generatePoNumber(locationName) {
     const trimmed = (locationName ?? form.location_name).trim();
@@ -86,11 +88,23 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
       setForm((f) => ({ ...f, po_number: result.po_number || '' }));
       setPoLocationCode(result.location_code || '');
       setPoGeneratedFor(trimmed);
+      setPoManualOverride(false); // fresh auto-generated value, no longer a manual override
+      setPoEditable(false);
     } catch (err) {
       setError(err.message || 'Could not generate a PO number.');
     } finally {
       setPoGenerating(false);
     }
+  }
+
+  // Manual edit: user types a PO number themselves instead of accepting
+  // the auto-generated one (e.g. to fix a duplicate, or to match a
+  // number already printed on a paper PO). Bypasses the "must match the
+  // current delivery location" generation check on submit, but the field
+  // still can't be left blank.
+  function updatePoNumberManually(value) {
+    setForm((f) => ({ ...f, po_number: value }));
+    setPoManualOverride(true);
   }
 
   function updateItem(index, field, value) {
@@ -204,7 +218,11 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
       setError('Delivery location is required.');
       return;
     }
-    if (!form.po_number || poGeneratedFor.toLowerCase() !== form.location_name.trim().toLowerCase()) {
+    if (!form.po_number.trim()) {
+      setError('Enter or generate a PO number before submitting.');
+      return;
+    }
+    if (!poManualOverride && poGeneratedFor.toLowerCase() !== form.location_name.trim().toLowerCase()) {
       setError('Click "Generate PO" for the current delivery location before submitting.');
       return;
     }
@@ -324,10 +342,24 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
             <div className="mt-3 flex items-center gap-2">
               <div className="flex-1">
                 <label className="mb-1 block text-xs font-medium text-slate-500">PO number</label>
-                <input readOnly className={`${FIELD_CLASS} bg-slate-100 font-mono text-slate-700`}
-                  value={form.po_number} placeholder="Generate from the location above"
-                  title="PO number — generated automatically from the delivery location" />
+                <input
+                  readOnly={!poEditable}
+                  className={`${FIELD_CLASS} font-mono text-slate-700 ${poEditable ? '' : 'bg-slate-100'}`}
+                  value={form.po_number}
+                  onChange={(e) => updatePoNumberManually(e.target.value)}
+                  placeholder="Generate from the location above, or edit manually"
+                  title={poEditable ? 'Type a custom PO number' : 'PO number — generated automatically from the delivery location'}
+                />
               </div>
+              <button
+                type="button"
+                onClick={() => setPoEditable((v) => !v)}
+                title={poEditable ? 'Done editing' : 'Manually edit the PO number'}
+                className="mt-5 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
+              >
+                {poEditable ? <Check size={14} /> : <Pencil size={14} />}
+                {poEditable ? 'Done' : 'Edit'}
+              </button>
               <button
                 type="button"
                 onClick={() => generatePoNumber()}
@@ -339,7 +371,11 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
                 Generate PO
               </button>
             </div>
-            {poLocationCode && form.po_number && (
+            {poManualOverride ? (
+              <p className="mt-1.5 text-xs text-amber-600">
+                Manually entered — not checked against the auto-generated sequence.
+              </p>
+            ) : poLocationCode && form.po_number && (
               <p className="mt-1.5 text-xs text-slate-500">
                 Location code <span className="font-mono font-medium text-slate-700">{poLocationCode}</span> — this number is next in the global PO sequence.
               </p>
