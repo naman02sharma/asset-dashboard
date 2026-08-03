@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, ChevronLeft, ChevronRight, Wrench, Trash2, ArrowLeft, Loader2, ShieldCheck, Download, History, Pencil } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Wrench, Trash2, ArrowLeft, Loader2, ShieldCheck, Download, History, Pencil, Printer } from 'lucide-react';
 import { api } from '../api/api.js';
 import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
 import { SkeletonCardRows } from './Skeleton.jsx';
@@ -9,6 +9,7 @@ import CombinedCalendarCard from './CombinedCalendarCard.jsx';
 import LocationBreakdownChart from './LocationBreakdownChart.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
+import PurchasePrintView from './PurchasePrintView.jsx';
 import FilesCell from './FilesCell.jsx';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -276,6 +277,7 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showPrint, setShowPrint] = useState(false);
   const [showDelivery, setShowDelivery] = useState(false);
   const isPartial = p.order_status === 'partially_delivered';
 
@@ -348,23 +350,28 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
           className="rounded-lg px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition-colors">
           {expanded ? 'Hide' : 'Manage'}
         </button>
+        <button onClick={() => setShowPrint(true)}
+          title="Print purchase order"
+          className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
+          <Printer size={17} strokeWidth={2.3} />
+        </button>
         {canEdit && onEditPurchase && (
           <button onClick={() => setShowEdit(true)}
             title="Edit purchase"
-            className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600">
-            <Pencil size={15} />
+            className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
+            <Pencil size={17} strokeWidth={2.3} />
           </button>
         )}
         <button onClick={() => setShowHistory(true)}
           title="View history"
-          className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600">
-          <History size={15} />
+          className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600">
+          <History size={17} strokeWidth={2.3} />
         </button>
         {isAdmin && (
           <button onClick={handleDeleteClick}
             title="Delete permanently — this cannot be undone"
-            className={`rounded-lg p-2 transition-colors ${confirmingDelete ? 'bg-red-600 text-white' : 'text-slate-300 hover:bg-red-50 hover:text-red-600'}`}>
-            <Trash2 size={15} />
+            className={`rounded-lg p-2 transition-all hover:scale-105 ${confirmingDelete ? 'bg-red-600 text-white' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'}`}>
+            <Trash2 size={17} strokeWidth={2.3} />
           </button>
         )}
       </div>
@@ -380,6 +387,10 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
             onUploadPhotos={onUploadPhotos} onUploadInvoices={onUploadInvoices}
             onInsuranceToggle={onInsuranceToggle} onDeleteFile={onDeleteFile} onSummaryChange={onSummaryChange} />
         </div>
+      )}
+
+      {showPrint && (
+        <PurchasePrintView purchase={p} onClose={() => setShowPrint(false)} />
       )}
 
       {showHistory && (

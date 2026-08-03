@@ -64,3 +64,25 @@ body {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
 }
+
+/* Print-only isolation for PurchasePrintView.jsx -- the standard
+   "print just this element" trick: everything on the page is hidden
+   for print, then the one element with this specific id (and its
+   children) is made visible again and pulled to fill the page on its
+   own. Scoped to this one id on purpose so it can never accidentally
+   swallow some other page's print output later. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #purchase-print-sheet,
+  #purchase-print-sheet * {
+    visibility: visible;
+  }
+  #purchase-print-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

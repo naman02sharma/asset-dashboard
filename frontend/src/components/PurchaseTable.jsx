@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ArrowUpDown, AlertTriangle, Trash2, Wrench, CheckCircle2, Loader2, History, Pencil } from 'lucide-react';
+import { ArrowUpDown, AlertTriangle, Trash2, Wrench, CheckCircle2, Loader2, History, Pencil, Printer } from 'lucide-react';
 import { StatusSelect } from './StatusBadge.jsx';
 import FilesCell from './FilesCell.jsx';
 import AdvancePaymentEditor from './AdvancePaymentEditor.jsx';
 import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
+import PurchasePrintView from './PurchasePrintView.jsx';
 import { SkeletonTableRows } from './Skeleton.jsx';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -58,6 +59,7 @@ export default function PurchaseTable({
   const [historyTarget, setHistoryTarget] = useState(null); // purchase | null
   const [deliveryTarget, setDeliveryTarget] = useState(null); // purchase | null
   const [editTarget, setEditTarget] = useState(null); // purchase | null
+  const [printTarget, setPrintTarget] = useState(null); // purchase | null
 
   // Only show the Maintenance column at all if at least one visible
   // purchase actually has something to show there — a plain "not
@@ -230,6 +232,13 @@ export default function PurchaseTable({
                   <td className="px-2 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
+                        onClick={() => setPrintTarget(p)}
+                        title="Print purchase order"
+                        className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600"
+                      >
+                        <Printer size={17} strokeWidth={2.3} />
+                      </button>
+                      <button
                         onClick={() => setHistoryTarget(p)}
                         title="View history"
                         className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600"
@@ -262,6 +271,10 @@ export default function PurchaseTable({
           </tbody>
         </table>
       </div>
+
+      {printTarget && (
+        <PurchasePrintView purchase={printTarget} onClose={() => setPrintTarget(null)} />
+      )}
 
       {historyTarget && (
         <PurchaseHistoryModal
