@@ -399,7 +399,5 @@ pm2 describe asset-backend
 
 ## 9. Known Issues / Follow-ups
 
-- [ ] Email notifications failing (`ENETUNREACH` to Gmail SMTP) — investigate droplet outbound networking on port 465
 - [ ] `rclone`'s shared client ID retiring in 2026 — set up a dedicated Google Cloud client ID before then
 - [ ] Frontend bundle is 775 KB (over Vite's 500 KB warning) — consider code-splitting
-- [ ] `deployuser` sudo password unknown — sort out proper sudo access instead of relying on root login
