@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ChevronLeft, ChevronRight, Wrench, Trash2, ArrowLeft, Loader2, ShieldCheck, Download, History, Pencil, Printer } from 'lucide-react';
 import { api } from '../api/api.js';
 import PurchaseHistoryModal from './PurchaseHistoryModal.jsx';
@@ -10,6 +11,7 @@ import LocationBreakdownChart from './LocationBreakdownChart.jsx';
 import RecordDeliveryModal from './RecordDeliveryModal.jsx';
 import EditPurchaseModal from './EditPurchaseModal.jsx';
 import PurchasePrintView from './PurchasePrintView.jsx';
+import { Button } from './ui/button.jsx';
 import FilesCell from './FilesCell.jsx';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -389,26 +391,41 @@ function CompletedOrderRow({ purchase: p, expanded, onToggleExpand, onUpdated, o
         </div>
       )}
 
-      {showPrint && (
-        <PurchasePrintView purchase={p} onClose={() => setShowPrint(false)} />
+      {/* These four modals are portaled straight to document.body
+          rather than rendered in place. This row wrapper has
+          `hover:-translate-y-0.5` (a CSS transform) on it, and a
+          `position: fixed` descendant of ANY element with a transform
+          stops being positioned relative to the viewport — it becomes
+          relative to that transformed ancestor instead. In practice
+          that made these popups' backdrop/position flicker and jump
+          while the row underneath was mid-hover-transition (e.g. the
+          moment the mouse settled after opening one). Portaling out to
+          document.body sidesteps the whole issue: nothing about this
+          row's own hover styling can affect them anymore. */}
+      {showPrint && createPortal(
+        <PurchasePrintView purchase={p} onClose={() => setShowPrint(false)} />,
+        document.body
       )}
 
-      {showHistory && (
-        <PurchaseHistoryModal purchaseId={p.id} itemName={p.item_name} onClose={() => setShowHistory(false)} />
+      {showHistory && createPortal(
+        <PurchaseHistoryModal purchaseId={p.id} itemName={p.item_name} onClose={() => setShowHistory(false)} />,
+        document.body
       )}
 
-      {showDelivery && (
-        <RecordDeliveryModal purchase={p} onClose={() => setShowDelivery(false)} onSubmit={onRecordDelivery} />
+      {showDelivery && createPortal(
+        <RecordDeliveryModal purchase={p} onClose={() => setShowDelivery(false)} onSubmit={onRecordDelivery} />,
+        document.body
       )}
 
-      {showEdit && (
+      {showEdit && createPortal(
         <EditPurchaseModal
           purchase={p}
           vendors={vendors}
           locations={locations}
           onClose={() => setShowEdit(false)}
           onSubmit={(form) => onEditPurchase(p.id, form)}
-        />
+        />,
+        document.body
       )}
     </div>
   );
@@ -487,10 +504,9 @@ function ExpandedDetails({ purchase: p, onUpdated, showToast, onUploadPhotos, on
             </div>
           )}
         </div>
-        <button onClick={handleSaveMaintenance} disabled={saving}
-          className="mt-3 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 transition-all active:scale-95">
+        <Button onClick={handleSaveMaintenance} loading={saving} size="sm" className="mt-3">
           {saving ? 'Saving…' : 'Save maintenance schedule'}
-        </button>
+        </Button>
         <p className="mt-1 text-[11px] text-slate-400">
           A "Maintenance" alert appears on the Home Dashboard 7 days before the date above.
         </p>

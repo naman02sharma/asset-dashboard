@@ -130,9 +130,15 @@ export async function applyStatusUpdate(purchaseId, newStatus, source = 'courier
  * webhook support.
  */
 export async function pollAllActiveShipments() {
+  // Excludes 'partially_delivered' as well as 'delivered'/'cancelled' —
+  // a purchase already mid-way through a manually-tracked partial
+  // delivery shouldn't have a generic courier status poll fast-forward
+  // it straight to fully "delivered" (see applyStatusUpdate below,
+  // which treats 'delivered' as "the whole order arrived" and creates
+  // Inventory assets for every remaining unit accordingly).
   const { rows: activePurchases } = await pool.query(
     `SELECT id, courier_name, tracking_number FROM purchases
-     WHERE order_status NOT IN ('delivered', 'cancelled') AND tracking_number IS NOT NULL`
+     WHERE order_status NOT IN ('delivered', 'cancelled', 'partially_delivered') AND tracking_number IS NOT NULL`
   );
 
   for (const purchase of activePurchases) {

@@ -4,6 +4,7 @@ import { api } from '../api/api.js';
 import FilePreviewModal from './FilePreviewModal.jsx';
 import QrCodeModal from './QrCodeModal.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { openOrPreviewFile } from '../utils/files.js';
 
 const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
@@ -205,7 +206,7 @@ function buildTimeline(holdings, changeLog) {
   return entries.sort((a, b) => (a.sortDate < b.sortDate ? 1 : -1));
 }
 
-function AmcFileGroup({ label, icon: Icon, files, onUpload, onUpdated, showToast }) {
+export function AmcFileGroup({ label, icon: Icon, files, onUpload, onUpdated, showToast }) {
   const [uploading, setUploading] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const inputRef = useRef(null);
@@ -232,7 +233,8 @@ function AmcFileGroup({ label, icon: Icon, files, onUpload, onUpdated, showToast
       <p className="mb-1 text-[11px] text-slate-400">{label} ({files.length})</p>
       <div className="flex flex-wrap gap-1.5">
         {files.map((f) => (
-          <button key={f.id} type="button" onClick={() => setPreviewFile(f)}
+          <button key={f.id} type="button" onClick={() => openOrPreviewFile(f, setPreviewFile)}
+            title={/\.pdf$/i.test(f.name || '') ? 'Open in a new tab' : 'Preview'}
             className="flex items-center gap-1 rounded border border-slate-200 px-1.5 py-1 text-[11px] text-brand-600 hover:bg-brand-50">
             <Check size={10} /> {f.name || 'file'}
           </button>

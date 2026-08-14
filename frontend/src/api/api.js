@@ -17,6 +17,9 @@ export function clearToken() {
 async function request(path, options = {}) {
   const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {
+    // Never let the browser serve a cached copy of a GET (e.g. the
+    // purchases summary) — every call here should hit the server.
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -214,6 +217,10 @@ export const api = {
 
   uploadInsurancePhotos: (id, files, onProgress) => uploadFiles(`/purchases/${id}/insurance-photos`, 'photos', files, onProgress),
   uploadInvoices: (id, files, onProgress) => uploadFiles(`/purchases/${id}/invoices`, 'invoices', files, onProgress),
+  // Invoice auto-fill on New Purchase — reads one file and returns the
+  // extracted fields directly (not a { purchase, results } shape like
+  // the two calls above, since no purchase exists yet at this point).
+  extractInvoice: (file) => uploadFiles('/purchases/extract-invoice', 'invoice', [file]),
   deleteFile: (purchaseId, fileId) => request(`/purchases/${purchaseId}/files/${fileId}`, { method: 'DELETE' }),
 
   // --- Maintenance (scheduled from Completed Orders, alerted + completed from the dashboard) ---

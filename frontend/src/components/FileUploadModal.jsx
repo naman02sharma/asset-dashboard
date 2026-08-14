@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { X, UploadCloud, FileIcon, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import FilePreviewModal from './FilePreviewModal.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { openOrPreviewFile } from '../utils/files.js';
 
 /**
  * Centered modal + overlay for uploading files against an EXISTING
@@ -146,7 +147,8 @@ export default function FileUploadModal({ label, icon: Icon = FileIcon, accept, 
               <ul className="space-y-1">
                 {files.map((f) => (
                   <li key={f.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2">
-                    <button type="button" onClick={() => setPreviewFile(f)}
+                    <button type="button" onClick={() => openOrPreviewFile(f, setPreviewFile)}
+                      title={/\.pdf$/i.test(f.name || '') ? 'Open in a new tab' : 'Preview'}
                       className="flex min-w-0 items-center gap-2 text-sm text-slate-600 hover:text-brand-600 hover:underline">
                       <FileIcon size={14} className="shrink-0 text-slate-400" />
                       <span className="truncate">{f.name || 'file'}</span>

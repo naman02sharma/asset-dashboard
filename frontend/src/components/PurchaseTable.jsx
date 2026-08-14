@@ -69,7 +69,20 @@ export default function PurchaseTable({
     ? [...BASE_COLUMNS, MAINTENANCE_COLUMN, ...TRAILING_COLUMNS]
     : [...BASE_COLUMNS, ...TRAILING_COLUMNS];
 
-  async function handleStatusChange(id, newStatus) {
+  async function handleStatusChange(id, newStatus, purchase) {
+    // A multi-unit purchase that hasn't had every unit confirmed yet
+    // must go through Record Delivery (which asks how many actually
+    // arrived and only creates Inventory assets for THAT many) rather
+    // than this plain status control jumping straight to "Delivered" —
+    // doing that here would silently mark the whole order complete and
+    // fabricate Inventory records for units that were never actually
+    // confirmed as delivered (see RecordDeliveryModal /
+    // recordPartialDelivery, and trackingService.applyStatusUpdate,
+    // which is what a raw "delivered" status change goes through).
+    if (newStatus === 'delivered' && purchase.quantity > 1 && purchase.delivered_quantity < purchase.quantity) {
+      setDeliveryTarget(purchase);
+      return;
+    }
     setUpdatingId(id);
     try {
       await onStatusChange(id, newStatus);
@@ -198,7 +211,7 @@ export default function PurchaseTable({
                     <StatusSelect
                       status={p.order_status}
                       disabled={updatingId === p.id}
-                      onChange={(newStatus) => handleStatusChange(p.id, newStatus)}
+                      onChange={(newStatus) => handleStatusChange(p.id, newStatus, p)}
                     />
                   </td>
                   {showMaintenanceColumn && (
@@ -239,7 +252,7 @@ export default function PurchaseTable({
                         <Printer size={17} strokeWidth={2.3} />
                       </button>
                       <button
-                        onClick={() => setHistoryTarget(p)}
+                        onClick={() => setHistoryTarget({ purchase: p })}
                         title="View history"
                         className="rounded-lg p-2 text-slate-400 transition-all hover:scale-105 hover:bg-slate-100 hover:text-brand-600"
                       >
@@ -278,8 +291,8 @@ export default function PurchaseTable({
 
       {historyTarget && (
         <PurchaseHistoryModal
-          purchaseId={historyTarget.id}
-          itemName={historyTarget.item_name}
+          purchaseId={historyTarget.purchase.id}
+          itemName={historyTarget.purchase.item_name}
           onClose={() => setHistoryTarget(null)}
         />
       )}

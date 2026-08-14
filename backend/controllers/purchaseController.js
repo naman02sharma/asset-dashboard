@@ -20,6 +20,7 @@ import { publicPathFor, processAndSaveFile, UPLOAD_ROOT } from '../middleware/up
 import { sendCsv } from '../utils/csv.js';
 import { ensureAssetFromPurchase, deleteAssetsForPurchase } from './assetController.js';
 import { generateUniqueLocationCode, previewNextPoNumber } from '../utils/poNumber.js';
+import { extractInvoiceData } from '../services/invoiceExtractionService.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -259,23 +260,63 @@ export async function getPurchaseHistory(req, res) {
 
 /**
  * GET /api/purchases/summary
- * Powers the four (now six) KPI cards. Counts ALL active purchases
- * (including delivered/completed ones) toward total spend — completed
- * purchases still represent real money spent — but only counts
- * non-delivered ones toward "Pending Deliveries".
+ * Powers the five KPI cards.
+ *
+ * total_value is deliberately NOT just "every asset row that exists" —
+ * it's gated on payment:
+ *   - An asset with no originating purchase (purchase_id IS NULL,
+ *     i.e. added directly in Inventory rather than flowing in from a
+ *     purchase — see assetController.createAsset) always counts; there's
+ *     no purchase to have paid anything on.
+ *   - An asset that DID flow in from a purchase only counts once that
+ *     purchase has at least some payment recorded against it
+ *     (SUM(payments.amount) > 0). Physically arriving is not the same
+ *     as being paid for — a partial delivery on a purchase nobody has
+ *     paid a rupee toward yet used to inflate this card the instant
+ *     ensureAssetFromPurchase created those units (see
+ *     assetController.js — called from purchase creation, quick
+ *     status-change, courier auto-tracking, and both full/partial
+ *     record-delivery, so this gate has to live at the query level to
+ *     apply uniformly no matter which of those paths created the row).
+ *     Once ANY payment lands on that purchase, every asset it has
+ *     delivered so far counts (not just a payment-proportional slice —
+ *     payments are tracked per-purchase, not per-unit, so there's no
+ *     finer-grained number to gate on).
+ *
+ * total_paid = SUM(payments.amount) across every purchase, again
+ * regardless of archived_at — money the company has actually paid out
+ * doesn't stop counting just because the order was archived from view.
+ *
+ * total_remaining, by contrast, IS scoped to active (non-archived,
+ * non-cancelled) purchases: it answers "what do we still owe right
+ * now", and a cancelled/archived order isn't an open balance anymore.
+ * It is NOT restricted to non-delivered orders — a fully delivered
+ * purchase can still have a balance due (e.g. only an advance was
+ * paid), and that balance must keep showing up here until it's
+ * actually settled.
  *
  * pending_delivery_amount_remaining / upcoming_maintenance_cost exist
- * separately from total_remaining because that figure blends together
- * balance due on EVERY active purchase (delivered ones included) —
- * it can't answer "how much do I still owe on things I'm waiting on"
- * or "what's coming up in maintenance spend" on its own.
+ * separately from total_remaining because that figure answers a
+ * narrower question — "how much do I still owe on things I'm
+ * physically waiting on" / "what's coming up in maintenance spend" —
+ * used for the Pending Deliveries card's own sub-label, not the
+ * headline Amount To Be Paid figure.
  */
 export async function getPurchaseSummary(req, res) {
   const { rows } = await pool.query(`
     SELECT
-      COALESCE(SUM(total_cost_with_tax), 0) AS total_value,
-      COALESCE(SUM(amount_paid), 0)      AS total_paid,
-      COALESCE(SUM(amount_remaining), 0) AS total_remaining,
+      COALESCE((
+        SELECT SUM(a.cost_with_tax)
+        FROM assets a
+        LEFT JOIN (
+          SELECT purchase_id, SUM(amount) AS amount_paid
+          FROM payments
+          GROUP BY purchase_id
+        ) pay ON pay.purchase_id = a.purchase_id
+        WHERE a.purchase_id IS NULL OR COALESCE(pay.amount_paid, 0) > 0
+      ), 0) AS total_value,
+      COALESCE((SELECT SUM(amount) FROM payments), 0) AS total_paid,
+      COALESCE(SUM(amount_remaining) FILTER (WHERE order_status <> 'cancelled'), 0) AS total_remaining,
       COUNT(*) FILTER (WHERE order_status NOT IN ('delivered', 'cancelled')) AS pending_deliveries,
       COUNT(*) FILTER (WHERE is_maintenance_due) AS maintenance_due_count,
       -- Balance still owed specifically on orders not yet delivered —
@@ -1173,6 +1214,24 @@ export async function saveInsurancePhotos(req, res) {
 /** POST /api/purchases/:id/invoices (multipart, field "invoices", up to 10) */
 export async function saveInvoiceFiles(req, res) {
   return saveFiles(req, res, 'invoice', 'invoices');
+}
+
+/**
+ * POST /api/purchases/extract-invoice
+ * Backs the "Upload invoice to auto-fill" option on New Purchase —
+ * reads one invoice file (already validated/buffered by
+ * uploadInvoiceForExtraction) and returns the vendor/item/date fields
+ * AddPurchaseModal pre-fills the form with. Doesn't touch the
+ * database or write anything to disk — the file itself only gets
+ * saved once the purchase is actually created, through the normal
+ * saveInvoiceFiles flow above, same as any other invoice attachment.
+ */
+export async function extractInvoiceDetails(req, res) {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Upload an invoice file (JPEG, PNG, or PDF).' });
+  }
+  const extracted = await extractInvoiceData(req.file);
+  res.json(extracted);
 }
 
 /**

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Mail, Phone, Lock, AtSign, User as UserIcon, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { api, setToken } from '../api/api.js';
 import logo from '../assets/logo.png';
+import { Button } from './ui/button.jsx';
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 transition-colors';
@@ -240,10 +241,9 @@ export default function LoginScreen({ onAuthenticated }) {
 
                 {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-                <button type="submit" disabled={submitting}
-                  className="w-full rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95">
+                <Button type="submit" loading={submitting} size="lg" className="w-full">
                   {submitting ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
-                </button>
+                </Button>
               </form>
             </>
           )}
@@ -261,10 +261,9 @@ export default function LoginScreen({ onAuthenticated }) {
 
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-              <button type="submit" disabled={submitting}
-                className="w-full rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95">
+              <Button type="submit" loading={submitting} size="lg" className="w-full">
                 {submitting ? 'Sending…' : 'Send reset link'}
-              </button>
+              </Button>
 
               <button type="button" onClick={() => switchMode('login')}
                 className="flex w-full items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700">
@@ -294,10 +293,9 @@ export default function LoginScreen({ onAuthenticated }) {
 
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-              <button type="submit" disabled={submitting}
-                className="w-full rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95">
+              <Button type="submit" loading={submitting} size="lg" className="w-full">
                 {submitting ? 'Updating…' : 'Update password'}
-              </button>
+              </Button>
             </form>
           )}
         </div>

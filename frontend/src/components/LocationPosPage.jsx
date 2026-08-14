@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, MapPin, Package, Boxes, Search, Loader2, Hash, PackageSearch, Building2, Pencil } from 'lucide-react';
+import { ArrowLeft, MapPin, Package, Boxes, Search, Loader2, Hash, PackageSearch, Building2, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../api/api.js';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Badge } from './ui/badge.jsx';
 import { AnimatedNumber } from './ui/animated-number.jsx';
 import LocationFormModal from './LocationFormModal.jsx';
+import { ASSET_STATUS_STYLES } from './AssetStatusBadge.jsx';
 
 const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
@@ -22,7 +23,7 @@ const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-di
  * browsing page is exactly where someone hunting a specific PO number
  * would look first.
  */
-export default function LocationPosPage({ onBack, showToast, initialPoQuery = '' }) {
+export default function LocationPosPage({ onBack, showToast, initialPoQuery = '', onSummaryChange }) {
   const { canApprove, canEdit } = useAuth();
   const [overview, setOverview] = useState([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
@@ -102,6 +103,14 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
     try {
       await api.approvePurchase(id, true);
       showToast?.('Purchase approved.');
+      // Approving can backfill a deferred Inventory asset for an
+      // already-delivered purchase (see assetController), which moves
+      // the needle on Total Asset Purchase Value — same as
+      // App.jsx's own handleApprovePurchase, this page needs to
+      // refresh the shared KPI summary too, or the Purchases page
+      // keeps showing stale numbers until something else happens to
+      // refetch them.
+      onSummaryChange?.();
       await Promise.all([refreshDetail(), refreshPoSearch()]);
     } catch (err) {
       showToast?.(err.message || 'Could not approve.', 'error');
@@ -111,6 +120,7 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
     try {
       await api.approvePurchase(id, false, reason);
       showToast?.('Purchase rejected.');
+      onSummaryChange?.();
       await Promise.all([refreshDetail(), refreshPoSearch()]);
     } catch (err) {
       showToast?.(err.message || 'Could not reject.', 'error');
@@ -148,6 +158,24 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
   // suppress its purchase-side entry and let the asset represent it.
   const linkedPoNumbers = new Set((activeAssets || []).map((a) => a.po_number).filter(Boolean));
   const activePurchases = (rawPurchases || []).filter((p) => !p.po_number || !linkedPoNumbers.has(p.po_number));
+
+  // Bulk orders (e.g. "10x Dell Laptop" on one purchase) create one
+  // asset row PER UNIT (see assetController.ensureAssetFromPurchase),
+  // so a flat list here would show ten near-identical rows for what
+  // is really one order. Group units that share a purchase_id into
+  // one collapsible batch, same grouping InventoryPage uses — anything
+  // without a shared purchase_id (a batch of exactly one) renders as
+  // a normal row.
+  const groupedAssets = useMemo(() => {
+    const map = new Map();
+    const order = [];
+    for (const a of activeAssets || []) {
+      const key = a.purchase_id || `single-${a.id}`;
+      if (!map.has(key)) { map.set(key, []); order.push(key); }
+      map.get(key).push(a);
+    }
+    return order.map((key) => map.get(key));
+  }, [activeAssets]);
 
   return (
     <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
@@ -333,25 +361,14 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
                     </p>
                   </div>
                   <div className="divide-y divide-slate-50">
-                    {activeAssets.map((a) => (
-                      <div key={a.id} className="px-4 py-3 transition-colors hover:bg-slate-50">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <p className="font-medium text-slate-800">{a.asset_name}</p>
-                            <p className="text-xs text-slate-400">{a.category || '—'} · {dateFmt(a.purchase_date)}</p>
-                            <CreatorApproverLine item={a} />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {a.po_number && (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
-                                <Hash size={10} /> {a.po_number}
-                              </span>
-                            )}
-                            <span className="font-mono text-sm tabular-nums text-slate-700">{currency(a.cost)}</span>
-                          </div>
-                        </div>
-                        <ApprovalPanel item={a} canApprove={canApprove} onApprove={handleApproveAsset} onReject={handleRejectAsset} />
-                      </div>
+                    {groupedAssets.map((group) => (
+                      group.length > 1 ? (
+                        <LocationAssetBatchGroup key={group[0].purchase_id} group={group}
+                          canApprove={canApprove} onApproveAsset={handleApproveAsset} onRejectAsset={handleRejectAsset} />
+                      ) : (
+                        <LocationAssetRow key={group[0].id} asset={group[0]}
+                          canApprove={canApprove} onApproveAsset={handleApproveAsset} onRejectAsset={handleRejectAsset} />
+                      )
                     ))}
                   </div>
                 </div>
@@ -377,5 +394,77 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
         />
       )}
     </main>
+  );
+}
+
+// One asset, standalone (not part of a multi-unit batch) — the same
+// row markup this page always used.
+function LocationAssetRow({ asset: a, canApprove, onApproveAsset, onRejectAsset, nested = false }) {
+  return (
+    <div className={`px-4 py-3 transition-colors hover:bg-slate-50 ${nested ? 'bg-slate-50/50 pl-10' : ''}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium text-slate-800">{a.asset_name}</p>
+          <p className="text-xs text-slate-400">{a.category || '—'} · {dateFmt(a.purchase_date)}</p>
+          <CreatorApproverLine item={a} />
+        </div>
+        <div className="flex items-center gap-2">
+          {a.po_number && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
+              <Hash size={10} /> {a.po_number}
+            </span>
+          )}
+          <span className="font-mono text-sm tabular-nums text-slate-700">{currency(a.cost)}</span>
+        </div>
+      </div>
+      <ApprovalPanel item={a} canApprove={canApprove} onApprove={onApproveAsset} onReject={onRejectAsset} />
+    </div>
+  );
+}
+
+/**
+ * One collapsed row standing in for a whole bulk-order batch (e.g.
+ * "10x Dell Laptop" from a single purchase) at this location —
+ * expands into the individual LocationAssetRow for each unit. Mirrors
+ * InventoryPage's BatchGroupRow so a bulk order looks the same neat,
+ * collapsible dropdown wherever it shows up in the app, instead of a
+ * long run of near-identical rows.
+ */
+function LocationAssetBatchGroup({ group, canApprove, onApproveAsset, onRejectAsset }) {
+  const [expanded, setExpanded] = useState(false);
+  const first = group[0];
+
+  const counts = group.reduce((acc, a) => {
+    acc[a.status] = (acc[a.status] || 0) + 1;
+    return acc;
+  }, {});
+  const statusSummary = Object.entries(counts)
+    .map(([status, n]) => `${n} ${(ASSET_STATUS_STYLES[status]?.label || status).toLowerCase()}`)
+    .join(' · ');
+
+  return (
+    <div className="bg-brand-50/30 transition-colors hover:bg-brand-50/50">
+      <button onClick={() => setExpanded((e) => !e)} className="flex w-full items-center gap-2.5 px-4 py-3 text-left">
+        {expanded ? <ChevronDown size={14} className="shrink-0 text-brand-600" /> : <ChevronRight size={14} className="shrink-0 text-brand-600" />}
+        <Boxes size={15} className="shrink-0 text-brand-600" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-slate-800">{first.asset_name}</span>
+            <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">×{group.length}</span>
+            {first.po_number && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
+                <Hash size={10} /> {first.po_number}
+              </span>
+            )}
+          </div>
+          <p className="truncate text-xs text-slate-500">{statusSummary}</p>
+        </div>
+        <span className="ml-auto shrink-0 font-mono text-sm text-slate-600">{currency(first.cost)} each</span>
+      </button>
+      {expanded && group.map((a) => (
+        <LocationAssetRow key={a.id} asset={a} nested
+          canApprove={canApprove} onApproveAsset={onApproveAsset} onRejectAsset={onRejectAsset} />
+      ))}
+    </div>
   );
 }

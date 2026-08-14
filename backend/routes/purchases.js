@@ -28,10 +28,11 @@ import {
   approvePurchase,
   getNextPoNumber,
   searchByPoNumber,
+  extractInvoiceDetails,
 } from '../controllers/purchaseController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { requireAdmin, requireAdminOrSenior } from '../middleware/auth.js';
-import { uploadInsurancePhotos, uploadInvoiceFiles } from '../middleware/upload.js';
+import { uploadInsurancePhotos, uploadInvoiceFiles, uploadInvoiceForExtraction } from '../middleware/upload.js';
 
 const router = Router();
 
@@ -51,6 +52,12 @@ router.get('/completed', asyncHandler(getCompletedOrders));
 // other fixed paths in this block.
 router.get('/next-po', asyncHandler(getNextPoNumber));
 router.get('/search-po', asyncHandler(searchByPoNumber));
+
+// Invoice auto-fill for the New Purchase form — reads one uploaded
+// file (multer buffers it in memory, nothing touches disk here) and
+// returns whatever fields it could make out. Fixed path, same
+// reasoning as the other fixed paths in this block.
+router.post('/extract-invoice', uploadInvoiceForExtraction, asyncHandler(extractInvoiceDetails));
 
 router.get('/', asyncHandler(listPurchases));
 router.post('/', asyncHandler(createPurchase));

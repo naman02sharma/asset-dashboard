@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Search, Plus, Download, Loader2 } from 'lucide-react';
+import { Search, Plus, Download } from 'lucide-react';
 import { STATUS_STYLES } from './StatusBadge.jsx';
+import { Button } from './ui/button.jsx';
 
 const SORT_OPTIONS = [
   { value: 'expected_delivery_date:asc', label: 'Delivery date (soonest)' },
@@ -69,19 +70,12 @@ export default function FilterBar({ query, setQuery, status, setStatus, sort, se
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-60"
-        >
-          {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Export CSV
-        </button>
-        <button
-          onClick={onAddClick}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all active:scale-95"
-        >
+        <Button variant="secondary" onClick={handleExport} loading={exporting}>
+          <Download size={16} /> Export CSV
+        </Button>
+        <Button variant="primary" onClick={onAddClick}>
           <Plus size={16} /> New Purchase
-        </button>
+        </Button>
       </div>
     </div>
   );

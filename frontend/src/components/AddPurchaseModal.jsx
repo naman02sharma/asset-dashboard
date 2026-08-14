@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
-import { X, ChevronDown, ChevronRight, Camera, FileText, ShieldCheck, Plus, Trash2, Sparkles, Loader2, Pencil, Check } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { X, ChevronDown, ChevronRight, Camera, FileText, ShieldCheck, Plus, Trash2, Sparkles, Pencil, Check, UploadCloud, ScanLine } from 'lucide-react';
 import FileDropZone from './FileDropZone.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/api.js';
+import { Button } from './ui/button.jsx';
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -124,6 +125,77 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
   const [invoiceFiles, setInvoiceFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // --- Invoice auto-fill ---
+  // Reads an uploaded invoice (photo or PDF) and pre-fills whatever it
+  // can make out (vendor details, order date, line items) — the file
+  // reader runs entirely on this server (text extraction + local OCR),
+  // no outside AI service involved. It never touches delivery
+  // location, PO number, or requester info, since an invoice has no
+  // way of knowing any of those — the person still fills those in, same
+  // as always. The uploaded file also gets added to invoiceFiles so it
+  // still attaches to the purchase after creation, same as picking it
+  // in the "Invoices" uploader further down.
+  const [extracting, setExtracting] = useState(false);
+  const [extractionNote, setExtractionNote] = useState('');
+  const invoiceExtractInputRef = useRef(null);
+
+  async function handleInvoiceAutoFill(file) {
+    if (!file) return;
+    setExtracting(true);
+    setExtractionNote('');
+    setError('');
+    try {
+      const extracted = await api.extractInvoice(file);
+
+      setForm((f) => ({
+        ...f,
+        vendor_name: extracted.vendor_name ?? f.vendor_name,
+        vendor_gst_number: extracted.vendor_gst_number ?? f.vendor_gst_number,
+        vendor_address: extracted.vendor_address ?? f.vendor_address,
+        vendor_phone: extracted.vendor_phone ?? f.vendor_phone,
+        order_date: extracted.order_date || f.order_date,
+      }));
+      if (extracted.vendor_name || extracted.vendor_gst_number || extracted.vendor_address || extracted.vendor_phone) {
+        setShowVendorDetails(true);
+      }
+      // A typed vendor name that matches an existing record auto-fills
+      // and auto-confirms on blur (see handleVendorNameBlur) — but that
+      // only fires on a real blur event, which setting state
+      // programmatically doesn't trigger. Re-run the same match here so
+      // an extracted name for a vendor already on file doesn't get
+      // stuck behind the "new vendor?" prompt.
+      if (extracted.vendor_name) {
+        const match = vendors?.find((v) => v.name.trim().toLowerCase() === extracted.vendor_name.trim().toLowerCase());
+        setVendorConfirmed(!!match || !extracted.vendor_name.trim());
+      }
+
+      const extractedItems = (extracted.items || [])
+        .filter((it) => it.item_name)
+        .map((it) => ({
+          item_name: it.item_name || '',
+          description: it.description || '',
+          quantity: it.quantity || 1,
+          unit_cost: it.unit_cost ?? '',
+          tax_percent: it.tax_percent ?? '',
+          amount_paid: '',
+        }));
+      if (extractedItems.length) setItems(extractedItems);
+
+      setInvoiceFiles((files) => (files.includes(file) ? files : [...files, file]));
+
+      const gotCount = [extracted.vendor_name, extracted.vendor_gst_number, extracted.order_date, extractedItems.length > 0].filter(Boolean).length;
+      setExtractionNote(
+        gotCount > 0
+          ? 'Pulled what we could from the invoice into the fields below — every one of them is still editable, so fix anything that reads wrong and fill in delivery location, PO number, and anything left blank.'
+          : "Couldn't make out much from that file — the fields below are all still open for you to fill in by hand."
+      );
+    } catch (err) {
+      setError(err.message || 'Could not read that invoice.');
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   // --- Vendor autocomplete / smart auto-fill ---
   // Matches Vendor Management page's records so the "type a vendor name"
@@ -284,6 +356,36 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
         </div>
 
         <form id="new-purchase-form" onSubmit={handleSubmit} className="flex-1 space-y-3 overflow-y-auto px-6 py-4">
+          {/* --- Invoice auto-fill: optional, first thing in the form so
+              whatever it finds is already in place before the person
+              starts typing. Reading happens locally on this server
+              (text extraction + OCR) — no outside AI service is
+              involved and nothing here requires an API key. --- */}
+          <div className="rounded-lg border border-dashed border-brand-200 bg-brand-50/40 p-3">
+            <input ref={invoiceExtractInputRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleInvoiceAutoFill(f); }} />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+                  <ScanLine size={15} />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Upload invoice to auto-fill</p>
+                  <p className="text-xs text-slate-500">Reads vendor, date, and item details from a photo or PDF — you fill in the rest.</p>
+                </div>
+              </div>
+              <Button type="button" variant="secondary" size="sm" loading={extracting}
+                onClick={() => invoiceExtractInputRef.current?.click()}>
+                <UploadCloud size={14} /> {extracting ? 'Reading…' : extractionNote ? 'Scan another invoice' : 'Choose file'}
+              </Button>
+            </div>
+            {extractionNote && (
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-brand-700">
+                <Sparkles size={13} className="mt-0.5 shrink-0" /> {extractionNote}
+              </p>
+            )}
+          </div>
+
           {/* --- Requester + delivery location, asked FIRST so the PO
               number (which is built from the location) can be
               generated before anything else is filled in. --- */}
@@ -360,16 +462,17 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
                 {poEditable ? <Check size={14} /> : <Pencil size={14} />}
                 {poEditable ? 'Done' : 'Edit'}
               </button>
-              <button
+              <Button
                 type="button"
                 onClick={() => generatePoNumber()}
-                disabled={poGenerating || !form.location_name.trim()}
+                disabled={!form.location_name.trim()}
+                loading={poGenerating}
                 title="Generate the PO number for this location"
-                className="mt-5 flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all disabled:opacity-50 active:scale-95"
+                className="mt-5"
               >
-                {poGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {!poGenerating && <Sparkles size={14} />}
                 Generate PO
-              </button>
+              </Button>
             </div>
             {poManualOverride ? (
               <p className="mt-1.5 text-xs text-amber-600">
@@ -608,14 +711,12 @@ export default function AddPurchaseModal({ vendors, locations, onClose, onSubmit
         </form>
 
         <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
-          <button type="button" onClick={onClose}
-            className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
+          <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" form="new-purchase-form" disabled={submitting}
-            className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all disabled:opacity-60 active:scale-95">
+          </Button>
+          <Button type="submit" form="new-purchase-form" loading={submitting}>
             {submitting ? 'Saving…' : 'Create Purchase'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

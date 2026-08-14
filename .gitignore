@@ -15,4 +15,6 @@ backend/uploads/*
 
 .DS_Store
 *.log
-npm-debug.log*
+npm-debug.log**.bundle
+frontend/node_modules/
+backend/node_modules/

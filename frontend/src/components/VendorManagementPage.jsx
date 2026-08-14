@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Search, MapPin, Phone, Mail, Link, Pencil, Trash2 } from 'lucide-react';
 import VendorFormModal from './VendorFormModal.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Button } from './ui/button.jsx';
 
 // BUGFIX (uniformity audit): this page used to show its Edit pencil to
 // every user regardless of role — the only "edit an existing record"
@@ -56,12 +57,9 @@ export default function VendorManagementPage({ vendors, onUpdateVendor, onCreate
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Vendors</h1>
           <p className="mt-1 text-sm text-slate-500">Manage all your suppliers and service providers.</p>
         </div>
-        <button
-          onClick={() => setActiveVendor({ mode: 'create', data: null })}
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:from-brand-600 hover:to-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all active:scale-95"
-        >
+        <Button onClick={() => setActiveVendor({ mode: 'create', data: null })}>
           <Plus size={16} /> Add Vendor
-        </button>
+        </Button>
       </div>
 
       <div className="px-8 pb-4">

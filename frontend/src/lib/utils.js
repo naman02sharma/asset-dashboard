@@ -1,10 +1,11 @@
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-// Standard shadcn/ui helper -- merges conditional classNames (clsx)
-// and then resolves conflicting Tailwind utility classes so the last
-// one wins (twMerge), e.g. cn('px-2', condition && 'px-4') correctly
-// keeps only px-4 instead of shipping both to the DOM.
+// Standard shadcn/kokonut-ui helper — merges conditional class names
+// (clsx) and then resolves any conflicting Tailwind utilities so the
+// last one wins (twMerge), so a caller's className can safely
+// override a primitive's default styling instead of both classes
+// fighting for the same property.
 export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }

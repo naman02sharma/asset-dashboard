@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Button } from './ui/button.jsx';
 
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
@@ -115,7 +116,7 @@ export default function EditPurchaseModal({ purchase, vendors, locations, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-[fadeIn_0.15s_ease-out]">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl animate-[scaleIn_0.15s_ease-out]">
+      <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl bg-white shadow-xl animate-[scaleIn_0.15s_ease-out]">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-slate-900">Edit Purchase</h2>
           <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -280,10 +281,9 @@ export default function EditPurchaseModal({ purchase, vendors, locations, onClos
             className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
             Cancel
           </button>
-          <button type="submit" form="edit-purchase-form" disabled={submitting}
-            className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all disabled:opacity-60 active:scale-95">
+          <Button type="submit" form="edit-purchase-form" loading={submitting}>
             {submitting ? 'Saving…' : 'Save Changes'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

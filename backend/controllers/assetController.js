@@ -175,7 +175,28 @@ export async function ensureAssetFromPurchase(purchase, unitsToCreate = null) {
   const alreadyCreated = existing[0].c;
   const maxUnitIssued = existing[0].max_unit;
   const totalQuantity = Math.max(1, parseInt(purchase.quantity, 10) || 1);
-  const remaining = totalQuantity - alreadyCreated;
+
+  // BUGFIX (approve-before-delivery): this used to cap at
+  // totalQuantity — how many units were ORDERED — regardless of how
+  // many had actually arrived. That meant approving a purchase that
+  // was still just "ordered" (or only 3 of 10 partially delivered)
+  // immediately created assets for the FULL ordered quantity, since
+  // approvePurchase calls this unconditionally on every approval with
+  // no unitsToCreate cap. Inventory Management would then show all 10
+  // units days before delivery, while Order History correctly still
+  // excluded the purchase entirely (order_status stays 'ordered' /
+  // 'partially_delivered' until the real quantity arrives) — exactly
+  // the kind of cross-page mismatch this function exists to prevent.
+  // Capping at delivered_quantity instead means nothing is created
+  // for a purchase with nothing confirmed as delivered yet (0 remains
+  // 0 no matter how many times approval or a status refresh calls
+  // this), and a partial delivery of 3-of-10 creates exactly 3 —
+  // matching Order History's own delivered_quantity/quantity figure
+  // for that same purchase — regardless of which of the five call
+  // sites (create, batch create, approve, partial delivery, courier
+  // status update) triggered it or in what order.
+  const deliveredQuantity = Math.max(0, parseInt(purchase.delivered_quantity, 10) || 0);
+  const remaining = Math.min(deliveredQuantity, totalQuantity) - alreadyCreated;
   const countToCreate = unitsToCreate != null ? Math.min(parseInt(unitsToCreate, 10) || 0, remaining) : remaining;
   if (countToCreate <= 0) return [];
 

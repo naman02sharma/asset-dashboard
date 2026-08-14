@@ -1,5 +1,6 @@
 import { Wallet, CheckCircle2, CalendarClock, Truck, Wrench } from 'lucide-react';
 import { TiltCard } from './ui/tilt-card.jsx';
+import { Card } from './ui/card.jsx';
 import { AnimatedNumber } from './ui/animated-number.jsx';
 
 const currency = (n) =>
@@ -11,15 +12,26 @@ const currency = (n) =>
  * proportion of total spend — so the relationship between the numbers
  * is visible at a glance, not just the raw figures.
  *
+ * Total Asset Purchase Value (the "total" spend meter is measured
+ * against) is payment-gated, not just "every asset that physically
+ * exists": an asset only counts once at least some money has been
+ * paid on the purchase it came from (assets added directly in
+ * Inventory, with no originating purchase, always count — there's
+ * nothing to gate). A delivery — partial or full — creates the asset
+ * row immediately, but arriving isn't the same as being paid for, so
+ * an unpaid delivery doesn't inflate this figure the moment it lands;
+ * see purchaseController.getPurchaseSummary for the actual gate.
+ *
  * The last three answer a different question than the first two: not
  * "what have I spent so far" but "what will I still need to pay out"
- * — combined, then broken down into money owed on orders still in
- * transit and the cost of maintenance that's scheduled but not yet
- * done. All three come straight from purchaseController.
- * getPurchaseSummary rather than being derived here, since
- * total_remaining (still returned by that endpoint, just not shown as
- * its own card here) blends delivered and undelivered orders together
- * and can't answer "what's still coming up" on its own — see the
+ * — the full outstanding balance across every active purchase
+ * (delivered orders included — a delivered order can still have money
+ * owed on it) plus the cost of maintenance that's scheduled but not
+ * yet done. All figures come straight from purchaseController.
+ * getPurchaseSummary rather than being derived here, so every page
+ * that touches a payment or an asset (Advance Payment edits in Order
+ * History, Inventory asset deletes, etc.) and calls loadSummary()
+ * afterward is guaranteed to update these same cards — see the
  * per-purchase "Overpaid ₹X" labels in AdvancePaymentEditor /
  * PurchaseTable / CompletedOrdersPage for where a since-corrected
  * overpayment still surfaces instead.
@@ -29,10 +41,17 @@ export default function KpiCards({ summary }) {
   const paid = Number(summary?.total_paid || 0);
   const paidPct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
 
+  // Total outstanding balance across every active purchase — delivered
+  // orders included. This used to only count non-delivered orders,
+  // which made a fully delivered order's remaining balance silently
+  // vanish from this card the moment it was marked delivered even
+  // though the money was still owed. total_remaining (from the
+  // backend) doesn't have that filter.
+  const totalRemaining = Number(summary?.total_remaining || 0);
   const pendingDeliveryOwed = Number(summary?.pending_delivery_amount_remaining || 0);
   const upcomingMaintenanceCost = Number(summary?.upcoming_maintenance_cost || 0);
   const upcomingMaintenanceCount = Number(summary?.upcoming_maintenance_count || 0);
-  const futureAmountDue = pendingDeliveryOwed + upcomingMaintenanceCost;
+  const futureAmountDue = totalRemaining + upcomingMaintenanceCost;
 
   const cards = [
     {
@@ -104,7 +123,7 @@ export default function KpiCards({ summary }) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
       {cards.map((card) => (
         <TiltCard key={card.label}>
-          <div className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-500/20">
+          <Card className="p-5" hover>
             <div className="flex items-start justify-between">
               <p className="text-sm font-medium text-slate-500">{card.label}</p>
               <span className={`flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110 ${card.iconBg}`}>
@@ -115,7 +134,7 @@ export default function KpiCards({ summary }) {
               <AnimatedNumber value={card.rawValue} format={card.formatFn} />
             </p>
             {card.meter}
-          </div>
+          </Card>
         </TiltCard>
       ))}
     </div>

@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { LogOut, Settings, Archive, Boxes, Users, Truck, Contact, MapPin, LayoutDashboard } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { LogOut, Settings, Archive, Users, Truck, Contact, MapPin, LayoutDashboard, ShoppingCart, PackageCheck } from 'lucide-react';
 import { api, getToken, clearToken } from './api/api.js';
 import { mockPurchases } from './mock/mockData.js';
 import logo from './assets/logo.png';
@@ -14,7 +14,9 @@ import NotificationSettingsModal from './components/NotificationSettingsModal.js
 import DeleteConfirmModal from './components/DeleteConfirmModal.jsx';
 import HistoryModal from './components/HistoryModal.jsx';
 import AssetLifecyclePage from './components/AssetLifecyclePage.jsx';
+import InventoryPage from './components/InventoryPage.jsx';
 import GlobalSearch from './components/GlobalSearch.jsx';
+import CombinedCalendar from './components/CombinedCalendar.jsx';
 import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner.jsx';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './components/ui/tooltip.jsx';
@@ -76,50 +78,75 @@ export default function App() {
   );
 }
 
-// Persists which page (and, within Assets, which tab) the person was
-// on so a browser reload lands back where they were instead of
-// snapping to the Home Dashboard — plain React state alone doesn't
-// survive a reload, so this is the one thing here that needs to.
-const VIEW_STORAGE_KEY = 'asset_dashboard_view_state';
-
-function loadStoredViewState() {
-  try {
-    const raw = localStorage.getItem(VIEW_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!['dashboard', 'assets', 'vendors', 'employees', 'locations'].includes(parsed?.view)) return null;
-    return parsed;
-  } catch {
-    return null; // corrupt/foreign value — fall back to defaults below
-  }
-}
-
 function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSaved }) {
   const { isAdmin } = useAuth();
   const [showManageUsers, setShowManageUsers] = useState(false);
-  const storedViewState = loadStoredViewState();
-  // 'dashboard' = active purchases + maintenance alerts (Home Dashboard)
-  // 'assets' = combined Successful Order History + Inventory Management
-  //            (tabs within AssetLifecyclePage — delivered purchases
-  //            auto-flow into Inventory, see trackingService.js)
-  const [view, setView] = useState(storedViewState?.view || 'dashboard');
+  // 'dashboard' = Inventory Management (Home) — hardware, AMC contracts,
+  //               and employee assignment lifecycles
+  // 'purchases' = active purchases + maintenance alerts (Purchase Orders)
+  // 'assets'    = Successful Order History (delivered purchases
+  //               auto-flow into Inventory on the Home page, see
+  //               trackingService.js)
+  // 'calendar'  = full-page month calendar — opened in a NEW TAB via
+  //               window.open('/?view=calendar', '_blank') from
+  //               CombinedCalendarCard's "Full calendar" link (was a
+  //               centered modal before; a real tab lets the person
+  //               keep both the calendar and whatever they were doing
+  //               open side by side instead of losing their place).
+  //
+  // A brand-new arrival at the site (login, a fresh tab/window) lands
+  // on Inventory Management ('dashboard') — but reloading the SAME tab
+  // (F5 / Ctrl+R) should keep you exactly where you were instead of
+  // bouncing back to Inventory Management. sessionStorage is what
+  // makes that distinction for free: it survives a reload of the same
+  // tab, but a new tab (or a new login) starts with none, so it still
+  // falls through to the 'dashboard' default exactly as before. The
+  // calendar deep link stays a special case — it's opened as its own
+  // dedicated tab via window.open('/?view=calendar', '_blank'), never
+  // something a reload should try to restore into a different tab.
+  const VIEW_STORAGE_KEY = 'asset_dashboard_last_view';
+  const [view, setView] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'calendar') return 'calendar';
+      const stored = sessionStorage.getItem(VIEW_STORAGE_KEY);
+      if (stored) return stored;
+    } catch { /* URL/sessionStorage unavailable — fall through to the default */ }
+    return 'dashboard';
+  });
 
-  // Navigating here from GlobalSearch needs to force a fresh mount of
-  // AssetLifecyclePage (and reseed its tab/query) even if it's already
-  // open on a different tab — the `token` bump gives it a changing
-  // `key` for exactly that.
-  const [assetsNav, setAssetsNav] = useState({ tab: storedViewState?.assetsTab || 'history', query: '', token: 0 });
-  const [locationsNav, setLocationsNav] = useState({ poQuery: '', token: 0 });
-
-  // Keep the stored state in sync with whatever's on screen — cheap
-  // enough to just re-write on every change rather than debouncing.
+  // Keep sessionStorage in sync so a same-tab reload restores this
+  // view. The calendar tab is deliberately excluded — it's already
+  // reached only via its own URL param, and persisting it here would
+  // make an ordinary reload of the MAIN tab jump to the calendar if
+  // the person had ever opened it in this session.
   useEffect(() => {
     try {
-      localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ view, assetsTab: assetsNav.tab }));
-    } catch {
-      /* localStorage unavailable (private browsing, quota) — not worth surfacing to the user */
-    }
-  }, [view, assetsNav.tab]);
+      if (view === 'calendar') return;
+      sessionStorage.setItem(VIEW_STORAGE_KEY, view);
+    } catch { /* sessionStorage unavailable — nothing to persist to */ }
+  }, [view]);
+
+  // Navigating here from GlobalSearch needs to force a fresh mount of
+  // the destination page (and reseed its query) even if it's already
+  // open — the `token` bump gives it a changing `key` for exactly that.
+  const [historyNav, setHistoryNav] = useState({ query: '', token: 0 });
+  const [inventoryNav, setInventoryNav] = useState({ query: '', token: 0 });
+  const [locationsNav, setLocationsNav] = useState({ poQuery: '', token: 0 });
+  // Every other tab (Order History, Home/Inventory, Locations) is its
+  // own child component that mounts fresh — with its own `useEffect(
+  // () => { load() }, [])` — every time you switch to it, so arriving
+  // there always shows current data with no manual reload needed. The
+  // Purchases tab used to be the one exception: its markup lived
+  // directly inside Dashboard, which never unmounts, so it depended
+  // entirely on the query/status/sort/view effect below noticing a
+  // change — and switching straight back to a tab whose dependencies
+  // hadn't changed (or a race between two fetches) could leave it
+  // showing stale/empty data until an actual browser refresh. This
+  // token bumps every time we navigate TO Purchases (nav button or
+  // GlobalSearch) and is used as that panel's `key`, forcing the same
+  // guaranteed fresh-mount fetch the other tabs already get.
+  const [purchasesNav, setPurchasesNav] = useState(0);
 
   const [purchases, setPurchases] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -171,11 +198,26 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     }
   }
 
+  // A ref-based request counter, not a boolean "loading" flag — this
+  // guards against an OUT-OF-ORDER response, not a simultaneous one.
+  // Every card on the Purchases/Order-History/Inventory pages calls
+  // loadSummary() after its own mutation (record a payment, delete an
+  // asset, record a delivery, ...). If two of those fire close
+  // together and the FIRST request happens to resolve AFTER the
+  // SECOND (a slow network hiccup, a busier query, whatever), the
+  // stale first response would land last and silently overwrite the
+  // fresh numbers — which looks exactly like "the KPI cards don't
+  // update until I hit refresh", because a refresh is a single clean
+  // request with nothing to race against. Only the response matching
+  // the most recently *issued* request is ever applied.
+  const summaryRequestId = useRef(0);
   async function loadSummary() {
+    const requestId = ++summaryRequestId.current;
     try {
-      setSummary(await api.getSummary());
+      const data = await api.getSummary();
+      if (requestId === summaryRequestId.current) setSummary(data);
     } catch {
-      setSummary(computeMockSummary(mockPurchases));
+      if (requestId === summaryRequestId.current) setSummary(computeMockSummary(mockPurchases));
     }
   }
 
@@ -185,7 +227,36 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
   }
 
   useEffect(() => { loadSummary(); loadVendorsAndLocations(); }, []);
-  useEffect(() => { if (view === 'dashboard') loadPurchases(); }, [debouncedQuery, status, sort, view]);
+  useEffect(() => { if (view === 'purchases') loadPurchases(); }, [debouncedQuery, status, sort, view]);
+  // Belt-and-suspenders alongside every loadSummary() call already
+  // sprinkled after individual mutations (record a payment, delete an
+  // asset, record a delivery, edit a purchase, ...): landing ON the
+  // Purchases page — where the KPI cards actually live — always
+  // fetches a fresh summary, so even a change made from some other
+  // path this file's authors didn't think to wire up still shows
+  // correctly the moment you arrive here, without needing a manual
+  // browser refresh.
+  useEffect(() => { if (view === 'purchases') loadSummary(); }, [view]);
+  // Covers the case the effect above can't: coming BACK to this
+  // browser tab (or this tab regaining focus after another window was
+  // in front) while already sitting on the Purchases view. `view`
+  // itself never changes in that scenario, so nothing above would
+  // re-fire — without this, a purchase edited from a second tab/window
+  // wouldn't show up here until an actual page reload.
+  useEffect(() => {
+    function handleVisibilityOrFocus() {
+      if (document.visibilityState === 'visible' && view === 'purchases') {
+        loadSummary();
+        loadPurchases();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, [view, debouncedQuery, status, sort]);
 
   async function handleCreatePurchase(form) {
     // Multi-item purchases (form.items with more than one row) go
@@ -428,22 +499,40 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     }
   }
 
-  // --- GlobalSearch navigation: jump to the right view/tab and seed
+  // --- GlobalSearch navigation: jump to the right view and seed
   // that page's own search box with the picked name. ---
   function handleGoToPurchase(itemName) {
-    setView('dashboard');
+    setView('purchases');
     setQuery(itemName);
+    goToPurchases();
+  }
+
+  // Single source of truth for "arriving at Purchases": bumps the
+  // remount key (belt-and-suspenders for the effects below) AND fires
+  // the fetches directly, right here, in the click handler itself.
+  // The remount-triggered effects in PurchasesPanel/Dashboard are not
+  // reliable enough to depend on alone — they can lose a race against
+  // an in-flight fetch from the tab you're leaving, or simply not fire
+  // if `view` was already 'purchases' (e.g. this click follows one
+  // that got swallowed). Calling loadPurchases()/loadSummary()
+  // directly here removes any dependency on effect ordering entirely:
+  // the moment the click happens, a fresh request goes out.
+  function goToPurchases() {
+    setPurchasesNav((n) => n + 1);
+    loadPurchases();
+    loadSummary();
   }
   function handleGoToAsset(assetName) {
-    setView('assets');
-    setAssetsNav((n) => ({ tab: 'inventory', query: assetName, token: n.token + 1 }));
+    // Inventory Management now lives on the Home page.
+    setView('dashboard');
+    setInventoryNav((n) => ({ query: assetName, token: n.token + 1 }));
   }
   function handleGoToVendor(vendorName) {
     // A vendor could show up on either side — Order History is the
     // more natural landing spot since spend/vendor questions are
     // usually about what's already been bought from them.
     setView('assets');
-    setAssetsNav((n) => ({ tab: 'history', query: vendorName, token: n.token + 1 }));
+    setHistoryNav((n) => ({ query: vendorName, token: n.token + 1 }));
   }
   function handleGoToPoNumber(poNumber) {
     setView('locations');
@@ -456,7 +545,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 shadow-sm shadow-slate-200/40 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-5">
           <button onClick={() => setView('dashboard')}
-            title="Dashboard"
+            title="Home — Inventory Management"
             className={`flex shrink-0 items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors ${
               view === 'dashboard' ? 'bg-brand-50' : 'hover:bg-slate-50'
             }`}>
@@ -466,7 +555,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
                 Asset Purchase Dashboard
                 {view === 'dashboard' && <LayoutDashboard size={13} className="text-brand-500" />}
               </h1>
-              <p className="text-xs text-slate-500">Track spend, deliveries, and payment status across all vendors.</p>
+              <p className="text-xs text-slate-500">Hardware, AMC contracts, and employee assignment lifecycles.</p>
             </div>
           </button>
           <div className="flex flex-1 justify-center">
@@ -485,14 +574,41 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
             <nav className="flex items-center gap-0.5 rounded-xl bg-gradient-to-b from-slate-100 to-slate-100/70 p-1 ring-1 ring-slate-200/60">
               <Tooltip>
                 <TooltipTrigger asChild>
+                  <button onClick={() => {
+                      const goingTo = view === 'purchases' ? 'dashboard' : 'purchases';
+                      if (goingTo === 'purchases') {
+                        // A real, full page reload — not just a React
+                        // state/remount trick — so the KPI cards and
+                        // table are guaranteed fresh no matter what SPA
+                        // state was doing. VIEW_STORAGE_KEY already
+                        // persists across a same-tab reload (see the
+                        // useState initializer above), so writing it
+                        // here first means the reloaded page lands
+                        // right back on Purchases automatically.
+                        try { sessionStorage.setItem(VIEW_STORAGE_KEY, 'purchases'); } catch { /* ignore */ }
+                        window.location.reload();
+                        return;
+                      }
+                      setView(goingTo);
+                    }}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      view === 'purchases' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
+                    }`}>
+                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><ShoppingCart size={17} strokeWidth={2.3} /></motion.span> <span className="hidden lg:inline">Purchases</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Purchase Orders</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <button onClick={() => setView(view === 'assets' ? 'dashboard' : 'assets')}
                     className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                       view === 'assets' ? 'bg-gradient-to-b from-white to-brand-50/60 text-brand-600 shadow-sm ring-1 ring-brand-100' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 hover:scale-105'
                     }`}>
-                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><Boxes size={17} strokeWidth={2.3} /></motion.span> <span className="hidden lg:inline">Assets</span>
+                    <motion.span whileHover={{ scale: 1.2, rotate: -8 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}><PackageCheck size={17} strokeWidth={2.3} /></motion.span> <span className="hidden lg:inline">Order History</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Assets & Order History</TooltipContent>
+                <TooltipContent>Successful Order History</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -587,19 +703,64 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
         </div>
       </header>
 
-      {view === 'assets' ? (
+      {view === 'calendar' ? (
+        <main className="mx-auto max-w-3xl space-y-4 px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Calendar</h2>
+              <p className="text-sm text-slate-500">Orders placed and upcoming AMC/warranty/repair-return events.</p>
+            </div>
+            <button onClick={() => window.close()}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+              Close tab
+            </button>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <CombinedCalendar showToast={showToast} />
+          </div>
+        </main>
+      ) : view === 'assets' ? (
         <AssetLifecyclePage
-          key={assetsNav.token}
+          key={historyNav.token}
           vendors={vendors}
           locations={locations}
           onBack={() => setView('dashboard')}
           showToast={showToast}
-          initialTab={assetsNav.tab}
-          initialQuery={assetsNav.query}
+          initialQuery={historyNav.query}
           onModifyAdvancePayment={handleModifyAdvancePayment}
           onRecordDelivery={handleRecordDelivery}
           onEditPurchase={handleUpdatePurchase}
           onSummaryChange={loadSummary}
+        />
+      ) : view === 'purchases' ? (
+        <PurchasesPanel
+          key={purchasesNav}
+          loadPurchases={loadPurchases}
+          loadSummary={loadSummary}
+          usingMockData={usingMockData}
+          summary={summary}
+          query={query} setQuery={setQuery}
+          status={status} setStatus={setStatus}
+          sort={sort} setSort={setSort}
+          debouncedQuery={debouncedQuery}
+          setShowAddModal={setShowAddModal}
+          showToast={showToast}
+          purchases={purchases}
+          loading={loading}
+          vendors={vendors}
+          locations={locations}
+          onStatusChange={handleStatusChange}
+          onDeleteClick={setDeleteTarget}
+          onInsuranceToggle={handleInsuranceToggle}
+          onUploadPhotos={handleUploadPhotos}
+          onUploadInvoices={handleUploadInvoices}
+          onDeleteFile={handleDeleteFile}
+          onModifyAdvancePayment={handleModifyAdvancePayment}
+          onCompleteMaintenance={handleCompleteMaintenance}
+          onRecordDelivery={handleRecordDelivery}
+          onEditPurchase={handleUpdatePurchase}
+          onApprovePurchase={handleApprovePurchase}
+          onRejectPurchase={handleRejectPurchase}
         />
       ) : view === 'vendors' ? (
         <VendorManagementPage
@@ -619,51 +780,23 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           initialPoQuery={locationsNav.poQuery}
           onBack={() => setView('dashboard')}
           showToast={showToast}
+          onSummaryChange={loadSummary}
         />
       ) : (
         <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
-          {usingMockData && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-              Showing sample data — connect the backend API to see live purchases.
-            </div>
-          )}
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Inventory Management</h2>
+            <p className="text-sm text-slate-500">Hardware, AMC contracts, and employee assignment lifecycles.</p>
+          </div>
 
-          <KpiCards summary={summary} />
-
-          <FilterBar
-            query={query} setQuery={setQuery}
-            status={status} setStatus={setStatus}
-            sort={sort} setSort={setSort}
-            onAddClick={() => setShowAddModal(true)}
-            onExport={async () => {
-              const [sortBy, sortDir] = sort.split(':');
-              try {
-                await api.exportPurchases({ q: debouncedQuery, status, sortBy, sortDir });
-              } catch (err) {
-                showToast(err.message, 'error');
-              }
-            }}
-          />
-
-          <PurchaseTable
-            purchases={purchases}
-            sort={sort}
-            onSortChange={setSort}
-            loading={loading}
+          <InventoryPage
+            key={inventoryNav.token}
             vendors={vendors}
             locations={locations}
-            onStatusChange={handleStatusChange}
-            onDeleteClick={setDeleteTarget}
-            onInsuranceToggle={handleInsuranceToggle}
-            onUploadPhotos={handleUploadPhotos}
-            onUploadInvoices={handleUploadInvoices}
-            onDeleteFile={handleDeleteFile}
-            onModifyAdvancePayment={handleModifyAdvancePayment}
-            onCompleteMaintenance={handleCompleteMaintenance}
-            onRecordDelivery={handleRecordDelivery}
-            onEditPurchase={handleUpdatePurchase}
-            onApprovePurchase={handleApprovePurchase}
-            onRejectPurchase={handleRejectPurchase}
+            showToast={showToast}
+            initialQuery={inventoryNav.query}
+            embedded
+            onSummaryChange={loadSummary}
           />
         </main>
       )}
@@ -708,6 +841,83 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
       <Toaster />
     </div>
     </TooltipProvider>
+  );
+}
+
+// Same markup that used to live inline inside Dashboard's render — the
+// difference is this is now a real component. Rendered with a `key`
+// that changes on every navigation to Purchases (see purchasesNav in
+// Dashboard), it mounts fresh each time, so this effect always fires
+// and the page never depends on some other state having also changed
+// to know it needs to fetch. Ongoing filter/sort/search changes while
+// already on this tab are still handled by Dashboard's own
+// query/status/sort-driven effect — this only covers "just arrived".
+function PurchasesPanel({
+  loadPurchases, loadSummary, usingMockData, summary,
+  query, setQuery, status, setStatus, sort, setSort, debouncedQuery,
+  setShowAddModal, showToast,
+  purchases, loading, vendors, locations,
+  onStatusChange, onDeleteClick, onInsuranceToggle, onUploadPhotos, onUploadInvoices,
+  onDeleteFile, onModifyAdvancePayment, onCompleteMaintenance, onRecordDelivery,
+  onEditPurchase, onApprovePurchase, onRejectPurchase,
+}) {
+  useEffect(() => {
+    loadPurchases();
+    loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: fire once on mount (i.e. once per arrival at this tab, via the `key` prop), not on every query/status/sort keystroke.
+  }, []);
+
+  return (
+    <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Purchase Orders</h2>
+        <p className="text-sm text-slate-500">Track spend, deliveries, and payment status across all vendors.</p>
+      </div>
+
+      {usingMockData && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+          Showing sample data — connect the backend API to see live purchases.
+        </div>
+      )}
+
+      <KpiCards summary={summary} />
+
+      <FilterBar
+        query={query} setQuery={setQuery}
+        status={status} setStatus={setStatus}
+        sort={sort} setSort={setSort}
+        onAddClick={() => setShowAddModal(true)}
+        onExport={async () => {
+          const [sortBy, sortDir] = sort.split(':');
+          try {
+            await api.exportPurchases({ q: debouncedQuery, status, sortBy, sortDir });
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        }}
+      />
+
+      <PurchaseTable
+        purchases={purchases}
+        sort={sort}
+        onSortChange={setSort}
+        loading={loading}
+        vendors={vendors}
+        locations={locations}
+        onStatusChange={onStatusChange}
+        onDeleteClick={onDeleteClick}
+        onInsuranceToggle={onInsuranceToggle}
+        onUploadPhotos={onUploadPhotos}
+        onUploadInvoices={onUploadInvoices}
+        onDeleteFile={onDeleteFile}
+        onModifyAdvancePayment={onModifyAdvancePayment}
+        onCompleteMaintenance={onCompleteMaintenance}
+        onRecordDelivery={onRecordDelivery}
+        onEditPurchase={onEditPurchase}
+        onApprovePurchase={onApprovePurchase}
+        onRejectPurchase={onRejectPurchase}
+      />
+    </main>
   );
 }
 

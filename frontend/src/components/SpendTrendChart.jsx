@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, Loader2 } from 'lucide-react';
 import { api } from '../api/api.js';
 import MonthPurchasesModal from './MonthPurchasesModal.jsx';
+import { Card } from './ui/card.jsx';
 
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0, notation: 'compact' }).format(n);
@@ -47,7 +48,7 @@ export default function SpendTrendChart() {
   const barWidth = data && data.length ? (width - barGap * (data.length - 1)) / data.length : 0;
 
   return (
-    <div className="w-full rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-500/10">
+    <Card className="w-full p-3.5">
       <div className="mb-2 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
           <TrendingUp size={13} className="text-brand-600" /> Spend trend
@@ -113,6 +114,6 @@ export default function SpendTrendChart() {
       {openMonth && (
         <MonthPurchasesModal month={openMonth.month} label={openMonth.label} onClose={() => setOpenMonth(null)} />
       )}
-    </div>
+    </Card>
   );
 }

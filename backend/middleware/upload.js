@@ -66,6 +66,11 @@ const memoryUpload = (allowedTypes) => multer({
 export const uploadInsurancePhotos = memoryUpload(DOCUMENT_TYPES).array('photos', MAX_FILES_PER_REQUEST);
 export const uploadInvoiceFiles = memoryUpload(DOCUMENT_TYPES).array('invoices', MAX_FILES_PER_REQUEST);
 
+// Single-file variant for the "Upload invoice to auto-fill" button on
+// New Purchase — extraction reads exactly one document, so this is
+// .single() rather than the .array() every other upload here uses.
+export const uploadInvoiceForExtraction = memoryUpload(DOCUMENT_TYPES).single('invoice');
+
 // Inventory module — AMC contracts and their invoices. Both accept the
 // same document types (image or PDF); they land in the same
 // 'asset-files' disk subfolder and are distinguished in the DB by

@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import { X, ChevronDown, ChevronRight, Sparkles, Loader2, Pencil, Check } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Sparkles, Pencil, Check, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/api.js';
+import { Button } from './ui/button.jsx';
+import { AmcFileGroup } from './AssetDetailDrawer.jsx';
 
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
@@ -15,7 +17,7 @@ const FIELD_CLASS =
  * asset's History/Trail automatically by the backend (updateAsset) —
  * this form doesn't need to know or do anything special about that.
  */
-export default function AssetFormModal({ mode = 'create', asset, vendors, locations, onClose, onSubmit }) {
+export default function AssetFormModal({ mode = 'create', asset, vendors, locations, onClose, onSubmit, onAssetChanged, showToast }) {
   const { user } = useAuth();
   const [form, setForm] = useState({
     requested_by_name: mode === 'create' ? (user?.name || '') : '',
@@ -44,6 +46,15 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
     amc_cost: asset?.amc_cost ?? '',
   });
   const [showAmc, setShowAmc] = useState(!!asset?.amc_provider);
+  // Contract/invoice files for THIS asset — seeded from the row the
+  // list already has, then kept in sync locally as files are
+  // added/uploaded here so the modal doesn't need a full re-fetch.
+  // onAssetChanged mirrors the same update back into InventoryPage's
+  // list (see AssetDetailDrawer's identical pattern), so whichever of
+  // the two ways someone edited an asset from, the other one shows
+  // the same up-to-date files without a page refresh.
+  const [amcContracts, setAmcContracts] = useState(asset?.amc_contracts || []);
+  const [amcInvoices, setAmcInvoices] = useState(asset?.amc_invoices || []);
   const [showVendorDetails, setShowVendorDetails] = useState(false);
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -253,16 +264,17 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
                     {poEditable ? <Check size={14} /> : <Pencil size={14} />}
                     {poEditable ? 'Done' : 'Edit'}
                   </button>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => generatePoNumber()}
-                    disabled={poGenerating || !form.location_name.trim()}
+                    disabled={!form.location_name.trim()}
+                    loading={poGenerating}
                     title="Generate the PO number for this location"
-                    className="mt-5 flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all disabled:opacity-50 active:scale-95"
+                    className="mt-5"
                   >
-                    {poGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    {!poGenerating && <Sparkles size={14} />}
                     Generate PO
-                  </button>
+                  </Button>
                 </div>
                 {poManualOverride ? (
                   <p className="mt-1.5 text-xs text-amber-600">
@@ -416,6 +428,25 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
                   <input type="number" min="0" step="0.01" className={`${FIELD_CLASS} w-32`} value={form.amc_cost}
                     onChange={(e) => update('amc_cost', e.target.value)} />
                 </div>
+
+                {/* File uploads need a real asset id, so this only shows
+                    once the asset already exists — same reasoning as
+                    invoices/photos on a purchase only attaching after
+                    it's created. On create, add the AMC dates/cost
+                    above, save, then re-open Edit to attach documents;
+                    on edit they're available right here. */}
+                {mode === 'edit' && asset?.id && (
+                  <div className="flex gap-4 border-t border-slate-100 pt-2.5">
+                    <AmcFileGroup label="Contracts" icon={FileText} files={amcContracts}
+                      onUpload={(files) => api.uploadAmcContracts(asset.id, files)}
+                      onUpdated={(updated) => { setAmcContracts(updated.amc_contracts || []); setAmcInvoices(updated.amc_invoices || []); onAssetChanged?.(updated); }}
+                      assetId={asset.id} showToast={showToast} />
+                    <AmcFileGroup label="Invoices" icon={FileText} files={amcInvoices}
+                      onUpload={(files) => api.uploadAmcInvoices(asset.id, files)}
+                      onUpdated={(updated) => { setAmcContracts(updated.amc_contracts || []); setAmcInvoices(updated.amc_invoices || []); onAssetChanged?.(updated); }}
+                      assetId={asset.id} showToast={showToast} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -428,10 +459,9 @@ export default function AssetFormModal({ mode = 'create', asset, vendors, locati
             className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
             Cancel
           </button>
-          <button type="submit" form="asset-form" disabled={submitting}
-            className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95 transition-all">
+          <Button type="submit" form="asset-form" loading={submitting}>
             {submitting ? 'Saving…' : mode === 'create' ? 'Create Asset' : 'Save Changes'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

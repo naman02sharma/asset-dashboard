@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pencil, Check, X, Loader2 } from 'lucide-react';
+import { Pencil, Check, X } from 'lucide-react';
+import { Button } from './ui/button.jsx';
 
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
@@ -106,10 +107,9 @@ export default function AdvancePaymentEditor({ purchase, onSave }) {
           className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100">
           <X size={13} />
         </button>
-        <button onClick={handleSave} disabled={saving} title="Save"
-          className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-b from-brand-500 to-brand-600 text-white hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95 transition-all">
-          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={13} />}
-        </button>
+        <Button onClick={handleSave} loading={saving} title="Save" size="icon" className="h-6 w-6 rounded-md">
+          {!saving && <Check size={13} />}
+        </Button>
       </div>
     </div>
   );

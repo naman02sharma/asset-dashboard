@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowLeft, Search, Plus, UserPlus, RotateCcw, Wrench, Archive, RefreshCw, Download, Loader2, Link2, ChevronDown, ChevronRight, Boxes, UploadCloud, QrCode, Trash2, Pencil } from 'lucide-react';
+import { ArrowLeft, Search, UserPlus, RotateCcw, Wrench, Archive, RefreshCw, Download, Loader2, Link2, ChevronDown, ChevronRight, Boxes, UploadCloud, QrCode, Trash2, Pencil, ShieldCheck } from 'lucide-react';
 import { api } from '../api/api.js';
 import AssetStatusBadge, { ASSET_STATUS_STYLES } from './AssetStatusBadge.jsx';
 import AssetFormModal from './AssetFormModal.jsx';
@@ -11,6 +11,7 @@ import AssetModifyEditor from './AssetModifyEditor.jsx';
 import { SkeletonTableRows } from './Skeleton.jsx';
 import ImportAssetsModal from './ImportAssetsModal.jsx';
 import BulkAssignModal from './BulkAssignModal.jsx';
+import BulkAmcWarrantyModal from './BulkAmcWarrantyModal.jsx';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -18,7 +19,7 @@ const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
-export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '' }) {
+export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onSummaryChange }) {
   const { canEdit, isAdmin, canApprove } = useAuth();
 
   const [assets, setAssets] = useState([]);
@@ -48,7 +49,6 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [statusFilter, setStatusFilter] = useState('');
 
-  const [showAssetForm, setShowAssetForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const selectedAssets = useMemo(() => assets.filter((a) => selectedIds.has(a.id)), [assets, selectedIds]);
@@ -62,6 +62,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkQrLoading, setBulkQrLoading] = useState(false);
   const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [showBulkAmcWarranty, setShowBulkAmcWarranty] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
   const [assignTarget, setAssignTarget] = useState(null);
@@ -88,6 +89,14 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
 
   async function loadSummary() {
     try { setSummary(await api.getAssetSummary()); } catch { /* stat strip is non-critical */ }
+    // Keep the dashboard's own KPI cards (Total Asset Purchase Value
+    // etc.) in sync too — every mutation here that touches this
+    // page's own stat strip (create/edit/delete an asset, bulk
+    // retire/delete, CSV import) is exactly the same set of events
+    // that can change what those cards should show, since Total Asset
+    // Purchase Value is now sourced straight from the assets table
+    // (see purchaseController.getPurchaseSummary).
+    onSummaryChange?.();
   }
 
   async function loadEmployees() {
@@ -124,13 +133,6 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
     } catch (err) {
       showToast(err.message || 'Could not reject this asset.', 'error');
     }
-  }
-
-  async function handleCreateAsset(form) {
-    const created = await api.createAsset(form);
-    setAssets((rows) => [created, ...rows]);
-    loadSummary();
-    showToast('Asset created.');
   }
 
   async function handleEditAsset(form) {
@@ -313,6 +315,23 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
     return { succeeded, failed };
   }
 
+  // Applies the same AMC/warranty fields to every selected asset —
+  // each one is a normal PATCH /assets/:id (same endpoint + change-log
+  // behavior as editing one asset by hand), just fired for every
+  // selected id. Independent per-asset, same as handleBulkAssign, so
+  // one failure doesn't block the rest.
+  async function handleBulkAmcWarranty(ids, data) {
+    const outcomes = await Promise.allSettled(ids.map((id) => api.updateAsset(id, data)));
+    const succeeded = outcomes.filter((o) => o.status === 'fulfilled').length;
+    const failed = outcomes.length - succeeded;
+    clearSelection();
+    await loadAssets();
+    loadSummary();
+    if (failed) showToast(`${succeeded} updated, ${failed} failed.`, failed === outcomes.length ? 'error' : 'success');
+    else showToast(`${succeeded} asset(s) updated.`);
+    return { succeeded, failed };
+  }
+
   // Downloads every selected asset's QR code as one printable page
   // (browser's own "Print > Save as PDF" gives a combined PDF with no
   // extra library needed) rather than triggering N separate PNG
@@ -416,10 +435,6 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                   <UploadCloud size={16} /> Import CSV
                 </button>
               )}
-              <button onClick={() => setShowAssetForm(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all active:scale-95">
-                <Plus size={16} /> New Asset
-              </button>
             </div>
           </div>
 
@@ -440,6 +455,12 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                 className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition-colors">
                 <Download size={13} /> Export selected
               </button>
+              {canEdit && (
+                <button onClick={() => setShowBulkAmcWarranty(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition-colors">
+                  <ShieldCheck size={13} /> AMC / Warranty
+                </button>
+              )}
               {canEdit && (
                 <button onClick={handleBulkRetire} disabled={bulkRetiring}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 transition-colors disabled:opacity-60">
@@ -482,10 +503,9 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                       <td colSpan={11} className="px-4 py-10 text-center text-slate-400">
                         <p>No assets match your filters.</p>
                         {!query && !statusFilter && (
-                          <button onClick={() => setShowAssetForm(true)}
-                            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:from-brand-600 hover:to-brand-700 transition-all active:scale-95">
-                            <Plus size={13} /> Add your first asset
-                          </button>
+                          <p className="mt-1 text-xs text-slate-400">
+                            New assets are added from the Purchases page — delivered purchases flow into Inventory automatically.
+                          </p>
                         )}
                       </td>
                     </tr>
@@ -532,9 +552,6 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
           </div>
       </>
 
-      {showAssetForm && (
-        <AssetFormModal mode="create" vendors={vendors} locations={locations} onClose={() => setShowAssetForm(false)} onSubmit={handleCreateAsset} />
-      )}
       {showImportModal && (
         <ImportAssetsModal
           onClose={() => setShowImportModal(false)}
@@ -543,7 +560,7 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
       )}
       {editingAsset && (
         <AssetFormModal mode="edit" asset={editingAsset} vendors={vendors} locations={locations}
-          onClose={() => setEditingAsset(null)} onSubmit={handleEditAsset} />
+          onClose={() => setEditingAsset(null)} onSubmit={handleEditAsset} onAssetChanged={applyAssetUpdate} showToast={showToast} />
       )}
       {assignTarget && (
         <AssignEmployeeModal asset={assignTarget} employees={employees} locations={locations} onClose={() => setAssignTarget(null)} onSubmit={handleAssign} />
@@ -551,6 +568,9 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
       {showBulkAssign && (
         <BulkAssignModal assets={assignableSelectedAssets} skippedCount={selectedAssets.length - assignableSelectedAssets.length}
           employees={employees} locations={locations} onClose={() => setShowBulkAssign(false)} onSubmit={handleBulkAssign} />
+      )}
+      {showBulkAmcWarranty && (
+        <BulkAmcWarrantyModal assets={selectedAssets} onClose={() => setShowBulkAmcWarranty(false)} onSubmit={handleBulkAmcWarranty} />
       )}
       {maintenanceTarget && (
         <MaintenanceDispatchModal asset={maintenanceTarget} onClose={() => setMaintenanceTarget(null)} onSubmit={handleDispatch} />

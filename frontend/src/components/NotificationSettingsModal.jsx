@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Mail, Phone } from 'lucide-react';
 import { api } from '../api/api.js';
+import { Button } from './ui/button.jsx';
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -80,10 +81,9 @@ export default function NotificationSettingsModal({ user, onClose, onSaved }) {
               className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
               Cancel
             </button>
-            <button type="submit" disabled={saving}
-              className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 disabled:opacity-60 active:scale-95 transition-all">
+            <Button type="submit" loading={saving}>
               {saving ? 'Saving…' : 'Save'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

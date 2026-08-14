@@ -1,6 +1,7 @@
 import { Printer, X, Camera, FileText, ExternalLink } from 'lucide-react';
 import { STATUS_STYLES } from './StatusBadge.jsx';
 import { APPROVAL_STYLES } from './ApprovalStatusBadge.jsx';
+import { Button } from './ui/button.jsx';
 
 const currency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n || 0);
@@ -79,10 +80,9 @@ export default function PurchasePrintView({ purchase: p, onClose }) {
         <div className="print:hidden flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-base font-semibold text-slate-900">Print Purchase Order</h2>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:from-brand-600 hover:to-brand-700 active:scale-95 transition-all">
+            <Button onClick={() => window.print()}>
               <Printer size={15} /> Print
-            </button>
+            </Button>
             <button onClick={onClose} title="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
               <X size={18} />
             </button>
