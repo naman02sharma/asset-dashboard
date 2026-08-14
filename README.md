@@ -1,375 +1,405 @@
-# Asset Purchase Tracking Dashboard
+# Asset Purchase Dashboard
 
-A full-stack dashboard for tracking company asset purchases: spend, vendors,
-payments, delivery status, insurance documents, maintenance schedules, and
-automated email/SMS alerts.
+Internal asset management system for tracking purchases, inventory, vendors, employees, and asset lifecycle — including delivery tracking, warranty/AMC, depreciation, and HR-linked asset assignment.
 
-**Stack:** React + Tailwind CSS (frontend) · Node.js/Express (backend) ·
-PostgreSQL (database) · Nodemailer/Gmail (notifications) · Multer + Sharp (file uploads)
+- **Live site:** https://www.sangkajgroupams.com
+- **Repo:** https://github.com/naman02sharma/asset-dashboard
+- **Server:** DigitalOcean droplet — `206.189.133.134`
 
-```
-asset-dashboard/
-├── database/
-│   ├── schema.sql                              # Full schema for a fresh install
-│   ├── 002_add_users.sql                       # Migration: login + notification prefs
-│   ├── 003_add_purchase_archive.sql            # Migration: delete-to-history support
-│   ├── 004_vendor_details_and_insurance.sql    # Migration: vendor/location GST+address, insurance
-│   ├── 005_maintenance_files_audit.sql         # Migration: multi-file uploads, audit log, maintenance
-│   ├── 006_inventory_assets.sql                # Migration: Inventory & Asset Assignment module
-│   ├── seed_sample_data.sql                    # Optional sample rows
-│   └── clear_seed_data.sql                     # Removes the sample rows
+---
+
+## 1. Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React (Vite), Tailwind CSS, shadcn/ui, Recharts, Framer Motion |
+| Backend | Node.js (Express) |
+| Database | PostgreSQL |
+| Process manager | PM2 (`asset-backend`) |
+| Web server | Nginx (reverse proxy + static frontend host) |
+| File storage | Local disk (`backend/uploads/`) — invoices, insurance photos |
+| Invoice extraction | `pdf-parse` (digital PDFs) + `tesseract.js` (OCR for scans/photos) — runs entirely on-device, no external AI API |
+
+---
+
+## 2. Server Layout
+
+/home/deployuser/asset-dashboard/
 ├── backend/
-│   ├── server.js                # Express entrypoint, serves /uploads statically
-│   ├── config/db.js             # PostgreSQL pool (+ DATE type-parser fix — see section 9)
-│   ├── routes/                  # /api/purchases, /api/vendors, /api/locations, /api/assets,
-│   │                             # /api/employees, /api/auth, /api/webhooks
-│   ├── controllers/
-│   │   ├── purchaseController.js    # Asset Purchase Dashboard logic
-│   │   ├── assetController.js       # Inventory module: lifecycle state machine, AMC, history
-│   │   ├── employeeController.js    # Employees (soft-delete only — see section 8)
-│   │   └── authController.js
-│   ├── middleware/
-│   │   ├── auth.js                  # JWT session check
-│   │   ├── upload.js                # Multer + Sharp: multi-file upload with image compression
-│   │   └── errorHandler.js          # Maps Multer/validation errors to clean 400s
-│   ├── services/
-│   │   ├── emailService.js          # Nodemailer + templated alerts
-│   │   ├── smsService.js            # SMS alerts (mocked — swap in Twilio)
-│   │   ├── notificationService.js   # Dispatches each alert to every user's chosen channel
-│   │   └── trackingService.js       # Courier webhook + polling + overdue/maintenance/AMC alerts + purge
-│   └── uploads/                 # Created automatically — insurance photos, invoices, AMC files land here
-└── frontend/
-    └── src/
-        ├── App.jsx
-        ├── api/api.js            # fetch() wrapper (JSON + multipart uploads) for the backend API
-        ├── components/
-        │   ├── PurchaseTable.jsx, AdvancePaymentEditor.jsx, FilesCell.jsx, CompletedOrdersPage.jsx
-        │   ├── InventoryPage.jsx         # Inventory module: items grid + Calendar tab
-        │   ├── AssetDetailDrawer.jsx     # History/Trail timeline + AMC files
-        │   ├── AssignEmployeeModal.jsx, MaintenanceDispatchModal.jsx, ReturnAssetModal.jsx
-        │   ├── AssetFormModal.jsx, MaintenanceCalendar.jsx
-        │   └── AddPurchaseModal.jsx, HistoryModal.jsx, DeleteConfirmModal.jsx, Toast.jsx, ...
-        └── mock/mockData.js      # lets the UI run standalone without the backend
-```
+│ ├── config/ # DB connection config
+│ ├── controllers/ # Route logic (assets, purchases, employees, vendors, auth, etc.)
+│ ├── middleware/ # Auth, upload handling, error handling
+│ ├── routes/ # Express route definitions
+│ ├── services/ # Email, SMS, tracking, invoice extraction
+│ ├── uploads/ # User-uploaded files (invoices/, insurance-photos/) - NEVER delete, not in git
+│ ├── utils/
+│ ├── .env # Real secrets - NEVER commit, NEVER overwrite on deploy
+│ ├── .env.example # Template showing required variables
+│ ├── run-migration.js
+│ └── server.js
+├── frontend/
+│ ├── src/
+│ │ ├── components/ # Pages + modals (PurchaseTable, VendorManagementPage, EmployeeStatusPage, etc.)
+│ │ ├── api/ # API client
+│ │ ├── context/ # Auth context
+│ │ └── utils/
+│ └── dist/ # Production build - served directly by Nginx
+└── database/
+├── schema.sql # Full schema (fresh-install baseline)
+├── 002_.sql ... 021_.sql # Sequential, additive migrations (IF NOT EXISTS guards)
+├── seed_sample_data.sql
+└── clear_seed_data.sql
 
-## 1. Database setup
 
+Two Linux users are involved on the server:
+- **`deployuser`** — runs the app (PM2, Nginx serves its files), owns `~/asset-dashboard` and `~/backups`
+- **`root`** — used for rclone/Google Drive backup automation (see §5)
+
+---
+
+## 3. Environment Variables (`backend/.env`)
+
+Never committed to git, never overwritten during a deploy. Key variables:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string |
+| `JWT_SECRET` | Auth token signing |
+| `GMAIL_*` | Email notification credentials |
+| `PENDING_USER_EXPIRY_DAYS` | Optional — days before an unapproved signup auto-expires (defaults to 14 if absent) |
+
+Full reference: `backend/.env.example`.
+
+> **Known issue:** email notifications (payment reminders, status updates, overdue alerts) are currently failing with `ENETUNREACH` / connection timeouts reaching Gmail's SMTP servers — likely an IPv6 routing or outbound port 465 issue on the droplet. Users are **not** currently receiving these automated emails. Needs investigation.
+
+---
+
+## 4. Database
+
+- **Current schema version:** migration `021` (`021_purchase_and_asset_tax.sql`)
+- Migrations are **strictly additive** — every migration uses `IF NOT EXISTS` guards and never drops/rewrites existing data
+- Run manually and individually, in numeric order, via `psql -f`:
 ```bash
-createdb asset_dashboard
-psql asset_dashboard -f database/002_add_users.sql
-psql asset_dashboard -f database/schema.sql
+  cd ~/asset-dashboard/database
+  psql -U asset_app -d asset_dashboard -h localhost -f 0XX_migration_name.sql
 ```
-
-**Order matters here** — `002_add_users.sql` must run BEFORE `schema.sql`,
-not after. `schema.sql` has foreign keys pointing at `users(id)`
-(`purchase_change_log`, `asset_change_log`, `password_reset_tokens`), so
-the `users` table has to exist first or `schema.sql` fails outright with
-`relation "users" does not exist`. (If you're following an older copy of
-this README that listed `schema.sql` first, that ordering was wrong —
-flip it.)
-
-Every other migration (003 through 016) is already merged into
-`schema.sql`/`002_add_users.sql` for a brand new install — running any of
-them again afterward is harmless (every statement uses `IF NOT
-EXISTS`/`CREATE OR REPLACE`), but you only strictly need to run an
-individual migration file if you're **updating an existing database**
-that predates it:
-
+- **Never** re-run `schema.sql` or already-applied numbered migrations against a live database
+- Sanity-check after any new migration:
 ```bash
-psql asset_dashboard -f database/003_add_purchase_archive.sql
-psql asset_dashboard -f database/004_vendor_details_and_insurance.sql
-psql asset_dashboard -f database/005_maintenance_files_audit.sql
-psql asset_dashboard -f database/006_inventory_assets.sql
-psql asset_dashboard -f database/007_asset_tag_and_location.sql
-psql asset_dashboard -f database/008_depreciation.sql
-psql asset_dashboard -f database/009_password_reset.sql
-psql asset_dashboard -f database/010_repair_cost.sql
-psql asset_dashboard -f database/011_user_roles.sql
-psql asset_dashboard -f database/012_po_number_and_partial_delivery.sql
-psql asset_dashboard -f database/013_user_approval.sql
-psql asset_dashboard -f database/014_purchase_change_log.sql
-psql asset_dashboard -f database/015_multi_item_purchase_orders.sql
-psql asset_dashboard -f database/016_employee_status_hr_fields.sql
+  psql -U asset_app -d asset_dashboard -h localhost -c "\d users"
+  psql -U asset_app -d asset_dashboard -h localhost -c "\d purchases"
 ```
 
-**No sample data is loaded by default.** To add a few example rows:
-```bash
-psql asset_dashboard -f database/seed_sample_data.sql
-```
-Remove it later with `psql asset_dashboard -f database/clear_seed_data.sql`.
+---
 
-## 2. Backend setup
+## 5. Backup Structure
 
-```bash
-cd backend
-npm install
-cp .env.example .env      # fill in DATABASE_URL, JWT_SECRET, and Gmail credentials
-npm run dev                # http://localhost:4000
-```
+Data is protected in **three layers**: live DB -> local droplet backups -> offsite Google Drive. This protects against both small mistakes (bad migration, accidental delete) and catastrophic loss (droplet deleted — DigitalOcean permanently destroys resources on a long-unpaid account, no recovery after that point).
 
-**Uploads:** `backend/uploads/insurance-photos/` and `backend/uploads/invoices/`
-are created automatically on first run and served at `/uploads/...`. Images
-(JPEG/PNG) are automatically resized (max 1920px wide) and re-compressed
-(quality 80) with [sharp](https://sharp.pixelplumbing.com) before being
-saved — a meaningful size reduction for typical phone-camera photos with no
-visible quality loss at the sizes this app displays them. PDFs pass through
-unchanged. 10MB-per-file limit, up to 10 files per upload request.
+### 5.1 Layer 1 — Nightly local backups (`deployuser` crontab)
 
-## 3. Frontend setup
+Location: `/home/deployuser/backups/`
 
-```bash
-cd frontend
-npm install
-npm run dev                # http://localhost:5173
-```
-
-## 4. API reference
-
-`/api/purchases`, `/api/vendors`, and `/api/locations` all require a
-logged-in session. `/api/auth/*` and `/api/webhooks/*` are public.
-
-| Method | Route | Purpose |
+| What | When | File pattern |
 |---|---|---|
-| GET | `/api/purchases/summary` | KPI totals for the 4 top cards |
-| GET | `/api/purchases?q=&status=&sortBy=&sortDir=` | Home Dashboard — active + maintenance-due purchases |
-| GET | `/api/purchases/completed?q=&vendor=&dateFrom=&dateTo=&page=&pageSize=` | Successful Order History, paginated |
-| GET | `/api/purchases/history` | Deleted Items (soft-deleted, last 3 months) |
-| GET | `/api/purchases/export?q=&status=&sortBy=&sortDir=` | CSV of the Home Dashboard's current filtered view |
-| GET | `/api/purchases/completed/export?q=&vendor=&dateFrom=&dateTo=` | CSV of ALL matching completed orders (ignores pagination) |
-| POST | `/api/purchases` | Create a purchase — free-text vendor & location, optional initial payment |
-| PATCH | `/api/purchases/:id/status` | Update order status (marking "delivered" moves it to Completed) |
-| PATCH | `/api/purchases/:id/advance-payment` | The "Modify" toggle — sets Advance Money Paid to a new total |
-| PATCH | `/api/purchases/:id/delivery-date` | Change expected delivery date |
-| PATCH | `/api/purchases/:id/insurance` | Toggle insured / not insured (clears files if turned off) |
-| POST | `/api/purchases/:id/insurance-photos` | Upload 1–10 photos (multipart, field `photos`) |
-| POST | `/api/purchases/:id/invoices` | Upload 1–10 invoice files (multipart, field `invoices`) |
-| DELETE | `/api/purchases/:id/files/:fileId` | Remove one uploaded file |
-| PATCH | `/api/purchases/:id/maintenance` | Schedule/reschedule/clear a maintenance date |
-| PATCH | `/api/purchases/:id/maintenance/complete` | Mark maintenance done (auto-reschedules if recurring) |
-| POST | `/api/purchases/:id/payments` | Record a NEW (additional) payment |
-| DELETE | `/api/purchases/:id?mode=history\|permanent` | Move to Deleted Items or delete permanently |
-| PATCH | `/api/purchases/:id/restore` | Restore from Deleted Items |
-| GET / POST | `/api/vendors`, `/api/locations` | Autocomplete lists / manual creation |
-| POST | `/api/webhooks/courier` | Inbound courier tracking webhook |
+| Full DB dump | Nightly (~02:00 UTC) | `db_YYYY-MM-DD.sql` |
+| Pre-deploy DB dump (manual) | On demand | `db_before_upgrade_YYYY-MM-DD_HHMM.sql` |
+| Pre-deploy uploads archive (manual) | On demand | `uploads_before_upgrade_YYYY-MM-DD_HHMM.tar.gz` |
 
-## 5. How a purchase moves between views
-
-There is **no copying** anywhere in this system — a purchase is always the
-same single row in the `purchases` table. Which page shows it is purely a
-filtered view over that one row, so a "move" can never duplicate data,
-drop an attached file, or leave two conflicting copies:
-
-- **Home Dashboard** — `archived_at IS NULL AND (order_status <> 'delivered' OR is_maintenance_due)`
-- **Successful Order History** — `archived_at IS NULL AND order_status = 'delivered'`
-- **Deleted Items** — `archived_at IS NOT NULL` (kept 3 months, then purged)
-
-Marking a purchase "delivered" makes it vanish from the Dashboard and
-appear in Completed Orders automatically — no explicit "move" action
-needed anywhere in the code. Scheduling maintenance within 7 days makes a
-Completed purchase reappear on the Dashboard, tagged "Maintenance", without
-ever leaving Completed Orders' underlying query.
-
-## 6. The "Modify" toggle & financial audit trail
-
-Each row's Advance Money Paid has a pencil icon (visible on hover) that
-opens an inline editor — type a new total, remaining balance recalculates
-live as a preview. Saving does NOT rewrite payment history; it inserts one
-**adjustment** payment row for the difference (which can be negative, e.g.
-correcting an overstated amount), so `amount_remaining` — already a live
-SUM over the payments table — stays correct automatically with nothing to
-manually recompute or risk drifting out of sync.
-
-Every edit is also written to `financial_audit_log` (previous value, new
-value, who, when) in the **same database transaction** as the payment
-adjustment, so the two can never end up out of sync if one write succeeds
-and the other fails. This log has no UI screen by design — it's for
-resolving a disputed number later, not day-to-day use. Query it directly
-in psql if needed: `SELECT * FROM financial_audit_log WHERE purchase_id = '...';`
-
-## 7. Multi-file uploads (insurance photos & invoices)
-
-Each purchase can have **multiple** insurance photos and multiple invoice
-files (JPEG/PNG/PDF, 10MB limit each). The small camera/document icon in
-the table shows a count badge; clicking it opens a list of every uploaded
-file with a delete ("x") on each, plus an "Add" button for a multi-select
-picker. Each file uploads and saves independently — if 2 of 5 selected
-files fail (wrong type, too large), the other 3 still land, and the
-failures are reported without losing the successes.
-
-Files live in `purchase_files` (one-to-many), not a single-path column, so
-there's no artificial cap on how many a purchase can have.
-
-## 8. Maintenance tracking & 7-day alerts
-
-From **Successful Order History**, expand any completed purchase to
-schedule maintenance: a date, an optional cost estimate, and a "Recurring"
-toggle (repeats every N months, default 6).
-
-Exactly 7 days before the scheduled date, that purchase automatically
-reappears on the **Home Dashboard** — tagged "Maintenance", with all its
-original info and photos still attached (nothing was duplicated to get it
-there) — and the daily cron job emails/texts every registered user
-(`maintenance_due` trigger, same notification system as delivery/payment
-alerts).
-
-Clicking **"Mark Completed"** on that dashboard alert:
-- If recurring: computes the next date (current date + the period, using
-  Postgres interval math so month-length differences are handled
-  correctly) and reschedules — it'll alert again 7 days before that.
-- If not recurring: clears the schedule entirely.
-Either way the purchase drops off the Dashboard and settles back into
-Successful Order History (or stays there with a future date, if recurring).
-
-## 9. Inventory & Asset Assignment module
-
-A second, independent subsystem (separate tables, separate controller)
-for tracking hardware/equipment through purchase → AMC → assignment →
-repair → retirement. Open it from the box icon in the header.
-
-**Status state machine** (see the comment block at the top of
-`assetController.js` for the full reasoning):
+```bash
+crontab -l   # as deployuser — check exact nightly DB dump schedule
 ```
-available  --assign-----------> in_use
-available  --send for repair--> under_repair
-in_use     --send for repair--> under_repair   (auto-closes the open employee holding)
-in_use, under_repair --return-> available | under_repair  (admin picks, based on condition)
-any (not retired) --retire----> retired        (auto-closes any open holding)
-retired    --restore----------> available
+
+### 5.2 Layer 2 — Nightly uploads snapshot + Google Drive sync (`root` crontab)
+
+Google Drive credentials (via `rclone`) live under `/root/.config/rclone/rclone.conf`, so these jobs run as **root**:
+
+```cron
+# 02:05 UTC - dated local snapshot of live uploads folder
+5 2 * * * cp -r /home/deployuser/asset-dashboard/backend/uploads/ /home/deployuser/backups/uploads_$(date +\%F)/
+
+# 02:15 UTC - sync all DB dumps to Google Drive
+15 2 * * * rclone copy /home/deployuser/backups/ gdrive:asset-dashboard-backups/ --min-age 1h --exclude "uploads_*/**" >> /home/deployuser/backups/rclone.log 2>&1
+
+# 02:20 UTC - sync live uploads folder to Google Drive
+20 2 * * * rclone sync /home/deployuser/asset-dashboard/backend/uploads/ gdrive:asset-dashboard-backups/uploads/ --min-age 1h >> /home/deployuser/backups/rclone.log 2>&1
+
+# 02:30 UTC - delete local uploads snapshots older than 14 days
+30 2 * * * find /home/deployuser/backups/ -maxdepth 1 -name "uploads_*" -mtime +14 -exec rm -rf {} \;
 ```
-"Assign" and "Send for Repair" are both blocked with a 400 when status
-is `under_repair` or `retired`, per the spec.
 
-**Nothing is ever overwritten.** Every assignment or repair dispatch is
-a new row in `asset_holdings` (never an update to a previous one) —
-re-assigning an asset appends a new holding rather than touching any
-prior record, so the full chronological trail always survives. A
-partial unique index (`one open holding per asset`) is the final
-backstop against two concurrent requests both trying to open a holding
-on the same asset — the loser gets a clean 409, not silently-overwritten
-custody.
+**Server timezone is UTC.** 02:00 UTC ≈ 7:30 AM IST.
 
-**Immutable History/Trail.** Each asset's detail drawer merges two
-append-only logs into one timeline: `asset_holdings` (who's held it,
-when) and `asset_change_log` (field-level edits — AMC changes, price
-corrections, etc., each with previous/new value and a timestamp).
-Both are pure inserts; the timeline is a read-only projection over them.
+### 5.3 Layer 3 — Google Drive
 
-**Employees are soft-deleted only.** There is no hard-delete endpoint —
-"removing" someone sets `is_active = false`, hiding them from the
-assignment dropdown without breaking any historical holding record that
-references them (satisfies "if an employee is deleted, their name
-remains in the audit trail" without needing a name-snapshot workaround,
-though `employee_name_snapshot` exists on each holding too, as a second
-layer of resilience).
+Remote name: `gdrive` (configured via `rclone config`, using rclone's shared client ID — **being retired sometime in 2026**, needs a custom client ID before then: https://rclone.org/drive/#making-your-own-client-id)
 
-**AMC renewal alerts** fire 30 days before `amc_end_date` (same
-notification system as delivery/payment/maintenance alerts — see
-section 6), plus a visual purple highlight + "AMC expiring" tag directly
-in the Inventory table. The **Calendar tab** (month/week view, custom-
-built, no external library) plots every AMC end date, warranty expiry,
-and open repair's expected return date at once.
+Google Drive/
+└── asset-dashboard-backups/
+├── db_*.sql # synced nightly DB dumps
+└── uploads/ # live mirror of backend/uploads/
 
-**API reference** (all require a logged-in session, same as the rest):
 
-| Method | Route | Purpose |
+### 5.4 Checking backup health
+
+```bash
+cat /home/deployuser/backups/rclone.log     # as root — recent sync activity/errors
+ls -lh /home/deployuser/backups/            # confirm local backups exist, non-empty
+rclone lsd gdrive:asset-dashboard-backups/  # confirm Drive contents
+```
+
+Check roughly once a month — otherwise fully hands-off.
+
+### 5.5 Restoring from backup
+
+```bash
+# Database
+export PGPASSWORD='<db-password>'
+psql -U asset_app -h localhost asset_dashboard < ~/backups/db_before_upgrade_<timestamp>.sql
+
+# Uploads
+tar -xzf ~/backups/uploads_before_upgrade_<timestamp>.tar.gz -C ~/asset-dashboard/
+
+# Asset Purchase Dashboard
+
+Internal asset management system for tracking purchases, inventory, vendors, employees, and asset lifecycle — including delivery tracking, warranty/AMC, depreciation, and HR-linked asset assignment.
+
+- **Live site:** https://www.sangkajgroupams.com
+- **Repo:** https://github.com/naman02sharma/asset-dashboard
+- **Server:** DigitalOcean droplet — `206.189.133.134`
+
+---
+
+## 1. Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React (Vite), Tailwind CSS, shadcn/ui, Recharts, Framer Motion |
+| Backend | Node.js (Express) |
+| Database | PostgreSQL |
+| Process manager | PM2 (`asset-backend`) |
+| Web server | Nginx (reverse proxy + static frontend host) |
+| File storage | Local disk (`backend/uploads/`) — invoices, insurance photos |
+| Invoice extraction | `pdf-parse` (digital PDFs) + `tesseract.js` (OCR for scans/photos) — runs entirely on-device, no external AI API |
+
+---
+
+## 2. Server Layout
+
+/home/deployuser/asset-dashboard/
+├── backend/
+│ ├── config/ # DB connection config
+│ ├── controllers/ # Route logic (assets, purchases, employees, vendors, auth, etc.)
+│ ├── middleware/ # Auth, upload handling, error handling
+│ ├── routes/ # Express route definitions
+│ ├── services/ # Email, SMS, tracking, invoice extraction
+│ ├── uploads/ # User-uploaded files (invoices/, insurance-photos/) - NEVER delete, not in git
+│ ├── utils/
+│ ├── .env # Real secrets - NEVER commit, NEVER overwrite on deploy
+│ ├── .env.example # Template showing required variables
+│ ├── run-migration.js
+│ └── server.js
+├── frontend/
+│ ├── src/
+│ │ ├── components/ # Pages + modals (PurchaseTable, VendorManagementPage, EmployeeStatusPage, etc.)
+│ │ ├── api/ # API client
+│ │ ├── context/ # Auth context
+│ │ └── utils/
+│ └── dist/ # Production build - served directly by Nginx
+└── database/
+├── schema.sql # Full schema (fresh-install baseline)
+├── 002_.sql ... 021_.sql # Sequential, additive migrations (IF NOT EXISTS guards)
+├── seed_sample_data.sql
+└── clear_seed_data.sql
+
+
+Two Linux users are involved on the server:
+- **`deployuser`** — runs the app (PM2, Nginx serves its files), owns `~/asset-dashboard` and `~/backups`
+- **`root`** — used for rclone/Google Drive backup automation (see §5)
+
+---
+
+## 3. Environment Variables (`backend/.env`)
+
+Never committed to git, never overwritten during a deploy. Key variables:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string |
+| `JWT_SECRET` | Auth token signing |
+| `GMAIL_*` | Email notification credentials |
+| `PENDING_USER_EXPIRY_DAYS` | Optional — days before an unapproved signup auto-expires (defaults to 14 if absent) |
+
+Full reference: `backend/.env.example`.
+
+> **Known issue:** email notifications (payment reminders, status updates, overdue alerts) are currently failing with `ENETUNREACH` / connection timeouts reaching Gmail's SMTP servers — likely an IPv6 routing or outbound port 465 issue on the droplet. Users are **not** currently receiving these automated emails. Needs investigation.
+
+---
+
+## 4. Database
+
+- **Current schema version:** migration `021` (`021_purchase_and_asset_tax.sql`)
+- Migrations are **strictly additive** — every migration uses `IF NOT EXISTS` guards and never drops/rewrites existing data
+- Run manually and individually, in numeric order, via `psql -f`:
+```bash
+  cd ~/asset-dashboard/database
+  psql -U asset_app -d asset_dashboard -h localhost -f 0XX_migration_name.sql
+```
+- **Never** re-run `schema.sql` or already-applied numbered migrations against a live database
+- Sanity-check after any new migration:
+```bash
+  psql -U asset_app -d asset_dashboard -h localhost -c "\d users"
+  psql -U asset_app -d asset_dashboard -h localhost -c "\d purchases"
+```
+
+---
+
+## 5. Backup Structure
+
+Data is protected in **three layers**: live DB -> local droplet backups -> offsite Google Drive. This protects against both small mistakes (bad migration, accidental delete) and catastrophic loss (droplet deleted — DigitalOcean permanently destroys resources on a long-unpaid account, no recovery after that point).
+
+### 5.1 Layer 1 — Nightly local backups (`deployuser` crontab)
+
+Location: `/home/deployuser/backups/`
+
+| What | When | File pattern |
 |---|---|---|
-| GET | `/api/assets/summary` | Stat strip counts (available/in use/under repair/AMC expiring) |
-| GET | `/api/assets?q=&status=` | List/search/filter assets |
-| GET | `/api/assets/export?q=&status=` | CSV of the current filtered view |
-| GET | `/api/assets/calendar` | Every AMC end date, warranty expiry, and open repair's expected return date |
-| GET | `/api/assets/:id` | Full detail: the asset + every holding + the change log (for the History/Trail) |
-| POST | `/api/assets` | Create an asset |
-| PATCH | `/api/assets/:id` | Edit core/AMC fields — diffed and logged automatically |
-| POST | `/api/assets/:id/assign` | Assign/handover to an employee (blocked if under repair/retired) |
-| POST | `/api/assets/:id/dispatch-repair` | Send for maintenance — technician/vendor + expected return date |
-| PATCH | `/api/assets/:id/return` | Return from an employee or from repair — condition note + resulting status |
-| PATCH | `/api/assets/:id/status` | Retire, or restore a retired asset to Available |
-| POST | `/api/assets/:id/amc-contracts`, `/amc-invoices` | Upload 1–10 files each (multipart, field `files`) |
-| DELETE | `/api/assets/:id/files/:fileId` | Remove one uploaded AMC file |
-| GET | `/api/employees?activeOnly=` | List employees for the assignment dropdown |
-| PATCH | `/api/employees/:id/deactivate` | Soft-delete (see note above) |
+| Full DB dump | Nightly (~02:00 UTC) | `db_YYYY-MM-DD.sql` |
+| Pre-deploy DB dump (manual) | On demand | `db_before_upgrade_YYYY-MM-DD_HHMM.sql` |
+| Pre-deploy uploads archive (manual) | On demand | `uploads_before_upgrade_YYYY-MM-DD_HHMM.tar.gz` |
 
-## 10. Error prevention & validation (what was fixed and why)
+```bash
+crontab -l   # as deployuser — check exact nightly DB dump schedule
+```
 
-- **`inconsistent types deduced for parameter $1`** — this specifically
-  happens when the same placeholder is reused across differently-shaped
-  SQL expressions (e.g. a plain assignment AND a `CASE WHEN $1 = ...`
-  comparison in the same query — exactly the bug that was in the old
-  status-update query). Fixed by giving every usage its own placeholder
-  and casting every single one explicitly (`::uuid`, `::text`, `::date`,
-  `::numeric`, `::boolean`) throughout `purchaseController.js` and
-  `trackingService.js`, not just the one place it had already surfaced.
-- **Empty-string optional fields** (`expected_delivery_date: ''`,
-  `delivery_location_id: ''`) throw `invalid input syntax for type
-  date/uuid` if cast directly — `nullIfEmpty()` converts them to `null`
-  before every query that touches an optional date/uuid/numeric field.
-- **Status update payload contract** — `StatusSelect`'s onChange already
-  extracts `e.target.value` before calling the handler, and the backend
-  now explicitly validates `typeof status === 'string'`, rejecting
-  anything else with a clear 400 instead of a confusing type error.
-- **Multer/file-upload errors** (oversized file, wrong type, too many
-  files) are caught in `errorHandler.js` and mapped to a clear 400
-  message, instead of falling through to a generic 500 that looks like a
-  server crash.
-- **State management** — the "Modify" editor and file-upload cell keep
-  their own local `useState`, seeded once when editing/uploading starts;
-  there's no `useEffect` that watches a prop and also causes that prop to
-  change (the classic infinite-loop shape). Every save is one API call,
-  one response, one state replace — no watcher loop possible.
-- **Concurrency** — `updateAdvancePayment` and every inventory
-  assign/dispatch/return endpoint lock the relevant row
-  (`SELECT ... FOR UPDATE`) *before* reading the value a decision is
-  based on, not after, so two overlapping requests can't both act on
-  the same stale read.
-- **DATE columns silently becoming JS `Date` objects** —
-  `node-postgres` parses Postgres `DATE` columns into `Date` objects by
-  default. Two real bugs come from that: (1) serializing one to JSON
-  via `.toISOString()` reports UTC, which shifts the date by a day on
-  any server not running in the UTC timezone, and (2) comparing a `Date`
-  object against a plain `'YYYY-MM-DD'` request-body string with `<`
-  doesn't sort chronologically — JS stringifies the `Date` via its
-  default `toString()` first, which does not sort the same way as the
-  actual dates. This was fixed once, globally, in `config/db.js`
-  (`types.setTypeParser(1082, ...)`) rather than patched at each of the
-  many call sites across both modules that compare or return a date.
-- **Data integrity across views** — see section 5 above: nothing is ever
-  copied between Dashboard / Completed / Deleted, so there's no
-  duplication or dropped-file risk by construction, not by convention.
+### 5.2 Layer 2 — Nightly uploads snapshot + Google Drive sync (`root` crontab)
 
-## 11. Design notes
+Google Drive credentials (via `rclone`) live under `/root/.config/rclone/rclone.conf`, so these jobs run as **root**:
 
-- Palette: neutral slate background/text with a single teal accent, plus
-  green/amber/red status colors. Maintenance-due rows get a soft amber
-  row tint in addition to their tag, so they're visible at a glance while
-  scrolling.
-- Financial figures use IBM Plex Mono with tabular numerals so columns
-  stay visually aligned.
-- Toasts confirm every mutating action; destructive actions (permanent
-  delete) require a second click within 3 seconds rather than a modal,
-  to keep the Completed Orders list fast to work through.
-- CSV exports (`utils/csv.js`) respect whatever search/filter is
-  currently active on that page — and for Successful Order History
-  specifically, export ALL matching rows, not just the current
-  pagination page, since a file export should contain everything the
-  user asked for, not just what's currently on screen.
+```cron
+# 02:05 UTC - dated local snapshot of live uploads folder
+5 2 * * * cp -r /home/deployuser/asset-dashboard/backend/uploads/ /home/deployuser/backups/uploads_$(date +\%F)/
 
-## 12. Extending this further
+# 02:15 UTC - sync all DB dumps to Google Drive
+15 2 * * * rclone copy /home/deployuser/backups/ gdrive:asset-dashboard-backups/ --min-age 1h --exclude "uploads_*/**" >> /home/deployuser/backups/rclone.log 2>&1
 
-- Swap the mocked `fetchTrackingStatusFromCourier` (trackingService.js)
-  for real courier API calls once you have credentials.
-- Swap the mocked `sendSms` (smsService.js) for a real Twilio call.
-- Swap Multer's disk storage for S3/GCS if deploying across multiple
-  server instances — only `middleware/upload.js` would need to change.
-- Add pagination to `GET /api/purchases` if the active-purchase count
-  grows large (Completed Orders already has it; the Dashboard doesn't yet
-  since it's expected to stay smaller — only non-delivered + maintenance-
-  due items live there).
-- The current auth is single-tier (any logged-in user can see/edit
-  everything, including permanent deletes). Add role-based access (e.g.
-  an `is_admin` column) if that needs restricting.
-- Employees currently have no dedicated management page (just the
-  free-text assign dropdown + soft-delete endpoint) — add one if you
-  need to bulk-edit departments/emails.
-- The Inventory Calendar fetches all events in one request and groups
-  them client-side; add `?month=` windowing to `GET /api/assets/calendar`
-  if the number of assets grows large enough for that to matter.
+# 02:20 UTC - sync live uploads folder to Google Drive
+20 2 * * * rclone sync /home/deployuser/asset-dashboard/backend/uploads/ gdrive:asset-dashboard-backups/uploads/ --min-age 1h >> /home/deployuser/backups/rclone.log 2>&1
+
+# 02:30 UTC - delete local uploads snapshots older than 14 days
+30 2 * * * find /home/deployuser/backups/ -maxdepth 1 -name "uploads_*" -mtime +14 -exec rm -rf {} \;
+```
+
+**Server timezone is UTC.** 02:00 UTC ≈ 7:30 AM IST.
+
+### 5.3 Layer 3 — Google Drive
+
+Remote name: `gdrive` (configured via `rclone config`, using rclone's shared client ID — **being retired sometime in 2026**, needs a custom client ID before then: https://rclone.org/drive/#making-your-own-client-id)
+
+Google Drive/
+└── asset-dashboard-backups/
+├── db_*.sql # synced nightly DB dumps
+└── uploads/ # live mirror of backend/uploads/
+
+
+### 5.4 Checking backup health
+
+```bash
+cat /home/deployuser/backups/rclone.log     # as root — recent sync activity/errors
+ls -lh /home/deployuser/backups/            # confirm local backups exist, non-empty
+rclone lsd gdrive:asset-dashboard-backups/  # confirm Drive contents
+```
+
+Check roughly once a month — otherwise fully hands-off.
+
+### 5.5 Restoring from backup
+
+```bash
+# Database
+export PGPASSWORD='<db-password>'
+psql -U asset_app -h localhost asset_dashboard < ~/backups/db_before_upgrade_<timestamp>.sql
+
+# Uploads
+tar -xzf ~/backups/uploads_before_upgrade_<timestamp>.tar.gz -C ~/asset-dashboard/
+
+# From Google Drive (if the droplet itself is lost)
+rclone copy gdrive:asset-dashboard-backups/ ~/restored-backups/ --progress
+```
+
+---
+
+## 6. Deployment Procedure
+
+```bash
+ssh deployuser@206.189.133.134
+cd ~/asset-dashboard
+
+# 1. Back up first - always
+mkdir -p ~/backups
+export PGPASSWORD='<db-password>'
+pg_dump -U asset_app -h localhost asset_dashboard > ~/backups/db_before_upgrade_$(date +%F_%H%M).sql
+tar -czf ~/backups/uploads_before_upgrade_$(date +%F_%H%M).tar.gz backend/uploads/
+
+# 2. Confirm clean working tree, then pull
+git status
+git pull
+
+# 3. Install dependencies
+cd backend && npm install --omit=dev
+cd ../frontend && npm install
+
+# 4. Run any NEW migrations only (see §4)
+
+# 5. Restart backend
+pm2 restart asset-backend
+pm2 logs asset-backend --lines 50 --nostream
+
+# 6. Rebuild frontend (Nginx serves dist/ directly - no restart needed)
+cd ~/asset-dashboard/frontend
+npm run build
+```
+
+**Rollback if needed:**
+```bash
+git log --oneline -5
+git checkout <previous-commit-hash>
+cd backend && npm install --omit=dev && pm2 restart asset-backend
+cd ../frontend && npm install && npm run build
+
+# Only if a migration actually corrupted data:
+psql -U asset_app -h localhost asset_dashboard < ~/backups/db_before_upgrade_<timestamp>.sql
+```
+
+---
+
+## 7. Health Checks
+
+```bash
+curl -i http://localhost:4000/api/health
+curl -i http://localhost:4000/api/purchases   # 401 = working, just needs auth
+curl -s --resolve www.sangkajgroupams.com:443:127.0.0.1 https://www.sangkajgroupams.com | grep -o '<title>.*</title>'
+psql -U asset_app -h localhost asset_dashboard -c "SELECT 1;"
+pm2 status
+pm2 describe asset-backend
+```
+
+---
+
+## 8. Feature Notes
+
+- **Multi-item purchases** — one purchase order can hold several line items, grouped in Order History
+- **Vendor Management** — admin-only; non-admins get 403 on direct edit attempts
+- **Employee Status / HR dashboard** — admin-only view
+- **Delivery tracking** — supports partial deliveries; asset-tag numbering bug fixed in migration `012`+
+- **User approval gate** (migration `013`) — new signups require admin approval; bootstrap admin and pre-existing accounts auto-approved
+- **Invoice extraction** — "Upload invoice to auto-fill" on New Purchase; `pdf-parse` for digital PDFs, `tesseract.js` OCR fallback for scans/photos, all on-device, no external AI API
+- **Bulk AMC/Warranty modal** — bulk-update AMC and warranty info across multiple assets
+
+---
+
+## 9. Known Issues / Follow-ups
+
+- [ ] Email notifications failing (`ENETUNREACH` to Gmail SMTP) — investigate droplet outbound networking on port 465
+- [ ] `rclone`'s shared client ID retiring in 2026 — set up a dedicated Google Cloud client ID before then
+- [ ] Frontend bundle is 775 KB (over Vite's 500 KB warning) — consider code-splitting
+- [ ] `deployuser` sudo password unknown — sort out proper sudo access instead of relying on root login
