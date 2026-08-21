@@ -14,15 +14,67 @@ import BulkAssignModal from './BulkAssignModal.jsx';
 import BulkAmcWarrantyModal from './BulkAmcWarrantyModal.jsx';
 import { ApprovalPanel, CreatorApproverLine } from './ApprovalStatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import FilesCell from './FilesCell.jsx';
 
 const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
-export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onSummaryChange }) {
+export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onSummaryChange, onInsuranceToggle, onUploadPhotos, onUploadInvoices, onDeleteFile }) {
   const { canEdit, isAdmin, canApprove } = useAuth();
 
   const [assets, setAssets] = useState([]);
+
+  /**
+   * Patches every asset in a purchase batch with fresh insurance/
+   * invoice data after a mutation, so the row(s) update immediately —
+   * without a full refetch — the instant a document is uploaded,
+   * deleted, or insurance is toggled. purchase_id is shared across a
+   * whole bulk order, so one purchase-level change here can affect
+   * several rows at once, same as it affects every row on the Order
+   * History side that shares that purchase.
+   */
+  function patchAssetsForPurchase(purchaseId, updatedPurchase) {
+    if (!updatedPurchase) return;
+    setAssets((rows) => rows.map((a) => (
+      a.purchase_id === purchaseId
+        ? {
+            ...a,
+            purchase_insurance_done: updatedPurchase.insurance_done,
+            purchase_insurance_photos: updatedPurchase.insurance_photos,
+            purchase_invoices: updatedPurchase.invoices,
+          }
+        : a
+    )));
+  }
+
+  // These four wrap the handlers passed down from App.jsx (the SAME
+  // ones Order History/Purchases use — one purchase record, one set
+  // of endpoints) and additionally patch this page's own local
+  // `assets` state, since Inventory fetches its rows from a separate
+  // endpoint (asset_summary) rather than sharing App.jsx's `purchases`
+  // array. Because both pages read/write the exact same underlying
+  // purchase + purchase_files rows, a change made here is already
+  // true in the database the moment Order History next loads it —
+  // this local patch just avoids waiting on a refetch to see it here.
+  async function handleInsuranceToggleLocal(purchaseId, done) {
+    const updated = await onInsuranceToggle(purchaseId, done);
+    patchAssetsForPurchase(purchaseId, updated);
+  }
+  async function handleUploadPhotosLocal(purchaseId, files, onProgress) {
+    const result = await onUploadPhotos(purchaseId, files, onProgress);
+    patchAssetsForPurchase(purchaseId, result?.purchase);
+    return result;
+  }
+  async function handleUploadInvoicesLocal(purchaseId, files, onProgress) {
+    const result = await onUploadInvoices(purchaseId, files, onProgress);
+    patchAssetsForPurchase(purchaseId, result?.purchase);
+    return result;
+  }
+  async function handleDeleteFileLocal(purchaseId, fileId) {
+    const updated = await onDeleteFile(purchaseId, fileId);
+    patchAssetsForPurchase(purchaseId, updated);
+  }
 
   // Bulk orders (e.g. "10x Dell Laptop" on one purchase) create one
   // asset row PER UNIT on the backend (see assetController.
@@ -494,16 +546,16 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onChange={toggleSelectAll} disabled={assets.length === 0}
                         className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
                     </th>
-                    {['Asset', 'Vendor', 'Location', 'Purchase Date', 'Cost', 'Warranty', 'AMC', 'Status', 'Holder', ''].map((h) => (
+                    {['Asset', 'Vendor', 'Location', 'Purchase Date', 'Cost', 'Warranty', 'AMC', 'Status', 'Holder', 'Documents', ''].map((h) => (
                       <th key={h} className="whitespace-nowrap px-4 py-3 font-medium text-slate-500">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && <SkeletonTableRows columns={11} rows={5} />}
+                  {loading && <SkeletonTableRows columns={12} rows={5} />}
                   {!loading && assets.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="px-4 py-10 text-center text-slate-400">
+                      <td colSpan={12} className="px-4 py-10 text-center text-slate-400">
                         <p>No assets match your filters.</p>
                         {!query && !statusFilter && (
                           <p className="mt-1 text-xs text-slate-400">
@@ -530,6 +582,10 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         selectedIds={selectedIds}
                         onToggleAsset={toggleAsset}
                         onToggleGroup={toggleGroup}
+                        onToggleInsurance={handleInsuranceToggleLocal}
+                        onUploadPhotos={handleUploadPhotosLocal}
+                        onUploadInvoices={handleUploadInvoicesLocal}
+                        onDeleteFile={handleDeleteFileLocal}
                       />
                     ) : (
                       <AssetRow key={group[0].id} asset={group[0]}
@@ -546,6 +602,10 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onReject={handleRejectAsset}
                         selected={selectedIds.has(group[0].id)}
                         onToggleSelect={() => toggleAsset(group[0].id)}
+                        onToggleInsurance={handleInsuranceToggleLocal}
+                        onUploadPhotos={handleUploadPhotosLocal}
+                        onUploadInvoices={handleUploadInvoicesLocal}
+                        onDeleteFile={handleDeleteFileLocal}
                       />
                     )
                   ))}
@@ -613,7 +673,7 @@ function StatCard({ label, value, accent = 'text-slate-900', alert = false }) {
  * of the ten" to an employee is simply expanding and picking that
  * row — no special-cased partial-assignment logic needed anywhere).
  */
-function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, selectedIds, onToggleAsset, onToggleGroup }) {
+function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, selectedIds, onToggleAsset, onToggleGroup, onToggleInsurance, onUploadPhotos, onUploadInvoices, onDeleteFile }) {
   const [expanded, setExpanded] = useState(false);
   const first = group[0];
   const allSelected = group.every((a) => selectedIds.has(a.id));
@@ -635,7 +695,7 @@ function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, on
             onChange={() => onToggleGroup(group)}
             className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
         </td>
-        <td colSpan={10} className="px-4 py-3">
+        <td colSpan={11} className="px-4 py-3">
           <button onClick={() => setExpanded((e) => !e)} className="flex w-full items-center gap-2.5 text-left">
             {expanded ? <ChevronDown size={14} className="shrink-0 text-brand-600" /> : <ChevronRight size={14} className="shrink-0 text-brand-600" />}
             <Boxes size={15} className="shrink-0 text-brand-600" />
@@ -661,6 +721,10 @@ function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, on
           onReject={onReject}
           selected={selectedIds.has(a.id)}
           onToggleSelect={() => onToggleAsset(a.id)}
+          onToggleInsurance={onToggleInsurance}
+          onUploadPhotos={onUploadPhotos}
+          onUploadInvoices={onUploadInvoices}
+          onDeleteFile={onDeleteFile}
         />
       ))}
     </>
@@ -714,7 +778,7 @@ function AmcStatusCell({ asset: a }) {
   );
 }
 
-function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, nested = false, selected = false, onToggleSelect }) {
+function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, nested = false, selected = false, onToggleSelect, onToggleInsurance, onUploadPhotos, onUploadInvoices, onDeleteFile }) {
   const { canEdit, isAdmin, canApprove } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const holderLabel = a.status === 'in_use' ? a.current_employee_name
@@ -776,6 +840,24 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
       <td className="px-4 py-3"><AmcStatusCell asset={a} /></td>
       <td className="px-4 py-3"><AssetStatusBadge status={a.status} /></td>
       <td className="px-4 py-3 text-slate-600">{holderLabel || '—'}</td>
+      <td className="px-4 py-3">
+        {a.purchase_id ? (
+          <FilesCell
+            purchase={{
+              id: a.purchase_id,
+              insurance_done: a.purchase_insurance_done,
+              insurance_photos: a.purchase_insurance_photos || [],
+              invoices: a.purchase_invoices || [],
+            }}
+            onToggleInsurance={onToggleInsurance}
+            onUploadPhotos={onUploadPhotos}
+            onUploadInvoices={onUploadInvoices}
+            onDeleteFile={onDeleteFile}
+          />
+        ) : (
+          <span className="text-xs text-slate-400" title="Manually added — not linked to a purchase">—</span>
+        )}
+      </td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-1.5 whitespace-nowrap">
           {a.status === 'available' && (

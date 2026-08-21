@@ -23,7 +23,7 @@ const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-di
  * browsing page is exactly where someone hunting a specific PO number
  * would look first.
  */
-export default function LocationPosPage({ onBack, showToast, initialPoQuery = '', onSummaryChange }) {
+export default function LocationPosPage({ onBack, showToast, initialPoQuery = '', onSummaryChange, onGoToAsset }) {
   const { canApprove, canEdit } = useAuth();
   const [overview, setOverview] = useState([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
@@ -364,10 +364,12 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
                     {groupedAssets.map((group) => (
                       group.length > 1 ? (
                         <LocationAssetBatchGroup key={group[0].purchase_id} group={group}
-                          canApprove={canApprove} onApproveAsset={handleApproveAsset} onRejectAsset={handleRejectAsset} />
+                          canApprove={canApprove} onApproveAsset={handleApproveAsset} onRejectAsset={handleRejectAsset}
+                          onGoToAsset={onGoToAsset} />
                       ) : (
                         <LocationAssetRow key={group[0].id} asset={group[0]}
-                          canApprove={canApprove} onApproveAsset={handleApproveAsset} onRejectAsset={handleRejectAsset} />
+                          canApprove={canApprove} onApproveAsset={handleApproveAsset} onRejectAsset={handleRejectAsset}
+                          onGoToAsset={onGoToAsset} />
                       )
                     ))}
                   </div>
@@ -398,13 +400,25 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
 }
 
 // One asset, standalone (not part of a multi-unit batch) — the same
-// row markup this page always used.
-function LocationAssetRow({ asset: a, canApprove, onApproveAsset, onRejectAsset, nested = false }) {
+// row markup this page always used. The asset name is now a button
+// that jumps straight to this exact asset in Inventory Management
+// (same handleGoToAsset flow the global search bar uses) — searches
+// by asset_tag when this unit has one (unique per physical item),
+// falling back to the asset name otherwise.
+function LocationAssetRow({ asset: a, canApprove, onApproveAsset, onRejectAsset, nested = false, onGoToAsset }) {
   return (
     <div className={`px-4 py-3 transition-colors hover:bg-slate-50 ${nested ? 'bg-slate-50/50 pl-10' : ''}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-medium text-slate-800">{a.asset_name}</p>
+          {onGoToAsset ? (
+            <button type="button" onClick={() => onGoToAsset(a.asset_tag || a.asset_name)}
+              title="Open in Inventory Management"
+              className="text-left font-medium text-slate-800 hover:text-brand-600 hover:underline">
+              {a.asset_name}
+            </button>
+          ) : (
+            <p className="font-medium text-slate-800">{a.asset_name}</p>
+          )}
           <p className="text-xs text-slate-400">{a.category || '—'} · {dateFmt(a.purchase_date)}</p>
           <CreatorApproverLine item={a} />
         </div>
@@ -430,7 +444,7 @@ function LocationAssetRow({ asset: a, canApprove, onApproveAsset, onRejectAsset,
  * collapsible dropdown wherever it shows up in the app, instead of a
  * long run of near-identical rows.
  */
-function LocationAssetBatchGroup({ group, canApprove, onApproveAsset, onRejectAsset }) {
+function LocationAssetBatchGroup({ group, canApprove, onApproveAsset, onRejectAsset, onGoToAsset }) {
   const [expanded, setExpanded] = useState(false);
   const first = group[0];
 
@@ -463,7 +477,8 @@ function LocationAssetBatchGroup({ group, canApprove, onApproveAsset, onRejectAs
       </button>
       {expanded && group.map((a) => (
         <LocationAssetRow key={a.id} asset={a} nested
-          canApprove={canApprove} onApproveAsset={onApproveAsset} onRejectAsset={onRejectAsset} />
+          canApprove={canApprove} onApproveAsset={onApproveAsset} onRejectAsset={onRejectAsset}
+          onGoToAsset={onGoToAsset} />
       ))}
     </div>
   );

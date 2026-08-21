@@ -28,7 +28,7 @@ const PAGE_SIZE = 20;
  * server-side so this stays fast even with hundreds of rows and
  * attached images — nothing beyond the current page is ever fetched.
  */
-export default function CompletedOrdersPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onEditPurchase, onSummaryChange }) {
+export default function CompletedOrdersPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onEditPurchase, onSummaryChange, onGoToAsset }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -197,7 +197,7 @@ export default function CompletedOrdersPage({ vendors, locations, onBack, showTo
         <div className="lg:col-span-2">
           <CombinedCalendarCard showToast={showToast} />
         </div>
-        <LocationBreakdownChart />
+        <LocationBreakdownChart onGoToAsset={onGoToAsset} />
       </div>
 
       {/* Search + filters */}

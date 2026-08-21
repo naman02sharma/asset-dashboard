@@ -5,19 +5,13 @@ export function isPdfFile(name) {
 }
 
 /**
- * Click handler for an uploaded file row. PDFs open in a real new
- * browser tab (the browser's native PDF viewer, which already has
- * print/download controls built into its toolbar) instead of the
- * in-app centered iframe popup — the popup version had no room for
- * print/download and felt like a dead end. Everything else (images,
- * unrecognized types) keeps using the in-app preview modal, which
- * still has its own "Open in new tab" button for anything without an
- * inline preview.
+ * Click handler for an uploaded file row. Always opens the in-app
+ * centered preview modal (FilePreviewModal) — for every file type,
+ * including PDFs. FilePreviewModal itself carries Download and Print
+ * actions in its header, so there's no need to hand off to a bare
+ * new browser tab (which used to be the PDF-only behavior here) just
+ * to get those controls.
  */
 export function openOrPreviewFile(file, setPreviewFile) {
-  if (isPdfFile(file.name)) {
-    window.open(file.url, '_blank', 'noopener,noreferrer');
-  } else {
-    setPreviewFile(file);
-  }
+  setPreviewFile(file);
 }

@@ -14,7 +14,7 @@ const BAR_COLORS = ['bg-brand-600', 'bg-amber-500', 'bg-indigo-500', 'bg-green-5
  * holding (LocationAssetsModal), same click-to-drill-down pattern as
  * SpendTrendChart's bars opening MonthPurchasesModal.
  */
-export default function LocationBreakdownChart() {
+export default function LocationBreakdownChart({ onGoToAsset }) {
   const [overview, setOverview] = useState(null);
   const [openLocation, setOpenLocation] = useState(null); // { id, name } | null
 
@@ -76,6 +76,7 @@ export default function LocationBreakdownChart() {
           locationId={openLocation.id}
           locationName={openLocation.name}
           onClose={() => setOpenLocation(null)}
+          onGoToAsset={onGoToAsset}
         />
       )}
     </Card>

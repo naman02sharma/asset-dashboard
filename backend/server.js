@@ -39,6 +39,22 @@ app.use('/api/webhooks', notificationRoutes);
 
 // Public: scanned from a physical asset's QR code — see
 // controllers/publicController.js for why this stays open.
+//
+// Mounted at BOTH paths on purpose:
+//  - /api/public/...  is the one that actually gets reached in
+//    production. Nginx (per the deployment guide) only proxies the
+//    /api prefix through to this backend; anything outside /api is
+//    served as a static frontend file and falls back to the SPA's
+//    index.html for unknown paths. A bare /public/asset/:id URL was
+//    getting swallowed by that fallback and landing on the app's
+//    login screen instead of ever reaching this route — this is what
+//    the QR code now encodes (see assetController.getAssetQrCode).
+//  - /public/...  is kept alive too, purely for backward compatibility
+//    with any QR codes already printed and stuck on physical assets
+//    before this fix, and for direct-to-backend access (e.g. hitting
+//    the API port directly in dev). Same router, same "no auth" body
+//    either way.
+app.use('/api/public', publicRoutes);
 app.use('/public', publicRoutes);
 
 // Everything below requires a logged-in user.

@@ -433,6 +433,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     try {
       const updated = await api.updateInsurance(id, done);
       applyPurchaseUpdate(updated);
+      return updated;
     } catch (err) {
       setPurchases(previous);
       showToast(err.message, 'error');
@@ -468,6 +469,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
   async function handleDeleteFile(purchaseId, fileId) {
     const updated = await api.deleteFile(purchaseId, fileId); // FilesCell shows its own error on throw
     applyPurchaseUpdate(updated);
+    return updated;
   }
 
   async function handleCompleteMaintenance(id) {
@@ -731,6 +733,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           onRecordDelivery={handleRecordDelivery}
           onEditPurchase={handleUpdatePurchase}
           onSummaryChange={loadSummary}
+          onGoToAsset={handleGoToAsset}
         />
       ) : view === 'purchases' ? (
         <PurchasesPanel
@@ -781,6 +784,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           onBack={() => setView('dashboard')}
           showToast={showToast}
           onSummaryChange={loadSummary}
+          onGoToAsset={handleGoToAsset}
         />
       ) : (
         <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
@@ -797,6 +801,10 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
             initialQuery={inventoryNav.query}
             embedded
             onSummaryChange={loadSummary}
+            onInsuranceToggle={handleInsuranceToggle}
+            onUploadPhotos={handleUploadPhotos}
+            onUploadInvoices={handleUploadInvoices}
+            onDeleteFile={handleDeleteFile}
           />
         </main>
       )}

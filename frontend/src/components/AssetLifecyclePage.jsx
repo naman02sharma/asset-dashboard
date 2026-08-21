@@ -13,7 +13,7 @@ import CompletedOrdersPage from './CompletedOrdersPage.jsx';
  * assetController.ensureAssetFromPurchase), so nothing has to be
  * re-entered by hand once an order actually lands.
  */
-export default function AssetLifecyclePage({ vendors, locations, onBack, showToast, initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onEditPurchase, onSummaryChange }) {
+export default function AssetLifecyclePage({ vendors, locations, onBack, showToast, initialQuery = '', onModifyAdvancePayment, onRecordDelivery, onEditPurchase, onSummaryChange, onGoToAsset }) {
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
       <div className="flex items-center gap-3">
@@ -29,7 +29,7 @@ export default function AssetLifecyclePage({ vendors, locations, onBack, showToa
 
       <CompletedOrdersPage vendors={vendors} locations={locations} showToast={showToast} embedded initialQuery={initialQuery}
         onModifyAdvancePayment={onModifyAdvancePayment} onRecordDelivery={onRecordDelivery}
-        onEditPurchase={onEditPurchase} onSummaryChange={onSummaryChange} />
+        onEditPurchase={onEditPurchase} onSummaryChange={onSummaryChange} onGoToAsset={onGoToAsset} />
     </div>
   );
 }

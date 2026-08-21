@@ -479,9 +479,15 @@ export async function getAssetDetail(req, res) {
 /**
  * GET /api/assets/:id/qrcode — returns a PNG QR code encoding a link
  * to this asset's PUBLIC info page (routes/public.js's
- * GET /public/asset/:id — no login required, since the whole point is
- * that someone can scan the physical tag with a phone and see the
+ * GET /api/public/asset/:id — no login required, since the whole point
+ * is that someone can scan the physical tag with a phone and see the
  * asset's details without needing to sign in first).
+ *
+ * Deliberately encodes the /api/public/... path, not the bare
+ * /public/... one — in production only /api is proxied through to
+ * this backend (see server.js), so a /public/... URL falls through to
+ * the frontend's static file server and lands on the SPA's login
+ * screen instead of this page. /api/public/... always reaches here.
  *
  * The URL is built from the incoming request's own host
  * (req.protocol + req.get('host')) rather than a hardcoded env var —
@@ -494,7 +500,7 @@ export async function getAssetQrCode(req, res) {
   const { rows } = await pool.query(`SELECT id FROM assets WHERE id = $1::uuid`, [id]);
   if (!rows.length) return res.status(404).json({ error: 'Asset not found.' });
 
-  const publicUrl = `${req.protocol}://${req.get('host')}/public/asset/${id}`;
+  const publicUrl = `${req.protocol}://${req.get('host')}/api/public/asset/${id}`;
   const png = await QRCode.toBuffer(publicUrl, { width: 320, margin: 2 });
 
   res.setHeader('Content-Type', 'image/png');
