@@ -482,7 +482,10 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
 
           {/* Table */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Both scrollbars (x and y) live on THIS div, bounded to a viewport-relative
+                max-height, so they always sit at the edges of a box that's on screen —
+                no more scrolling the whole page down/right just to reach a scrollbar. */}
+            <div className="max-h-[65vh] overflow-auto">
               <table className="w-full min-w-[1000px] text-left text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-slate-200 bg-slate-50/95 backdrop-blur-sm">
