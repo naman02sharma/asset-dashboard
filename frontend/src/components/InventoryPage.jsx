@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { ArrowLeft, Search, UserPlus, RotateCcw, Wrench, Archive, RefreshCw, Download, Loader2, Link2, ChevronDown, ChevronRight, Boxes, UploadCloud, QrCode, Trash2, Pencil, ShieldCheck } from 'lucide-react';
 import { api } from '../api/api.js';
 import AssetStatusBadge, { ASSET_STATUS_STYLES } from './AssetStatusBadge.jsx';
@@ -20,10 +20,62 @@ const currency = (n) =>
   n == null ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const dateFmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
-export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onSummaryChange, onInsuranceToggle, onUploadPhotos, onUploadInvoices, onDeleteFile }) {
+export default function InventoryPage({ vendors, locations, onBack, showToast, embedded = false, initialQuery = '', onSummaryChange, onInsuranceToggle, onUploadPhotos, onUploadInvoices, onDeleteFile, highlight }) {
   const { canEdit, isAdmin, canApprove } = useAuth();
 
   const [assets, setAssets] = useState([]);
+  // Row(s) briefly highlighted after a jump from a Location page (see
+  // App.jsx's handleGoToInventoryAsset) — never used to filter the
+  // list, only to visually flag which row(s) to look at for 2s.
+  const [highlightedIds, setHighlightedIds] = useState(() => new Set());
+  const [forceExpandPurchaseId, setForceExpandPurchaseId] = useState(null);
+  const processedHighlightToken = useRef(null);
+  const rowRefs = useRef({}); // asset id -> <tr> DOM node, for scrollIntoView
+
+  useEffect(() => {
+    if (!highlight?.token || highlight.token === processedHighlightToken.current) return;
+    if (!assets.length) return; // wait until this page's own fetch has actually populated rows
+    processedHighlightToken.current = highlight.token;
+
+    let targetIds = [];
+    let expandPurchaseId = null;
+    if (highlight.purchaseId) {
+      // Bulk/partial order's batch header was clicked — highlight
+      // every unit in that batch and make sure the (possibly
+      // collapsed) group is expanded so they're actually visible.
+      targetIds = assets.filter((a) => a.purchase_id === highlight.purchaseId).map((a) => a.id);
+      if (targetIds.length > 1) expandPurchaseId = highlight.purchaseId;
+    } else if (highlight.assetId) {
+      // One specific standalone asset was clicked — highlight just it.
+      // If it happens to live inside a currently-collapsed batch,
+      // still expand that batch so the highlighted row is visible.
+      const match = assets.find((a) => a.id === highlight.assetId);
+      if (match) {
+        targetIds = [match.id];
+        const groupSize = assets.filter((a) => a.purchase_id === match.purchase_id).length;
+        if (match.purchase_id && groupSize > 1) expandPurchaseId = match.purchase_id;
+      }
+    }
+    if (!targetIds.length) return;
+
+    if (expandPurchaseId) setForceExpandPurchaseId(expandPurchaseId);
+    setHighlightedIds(new Set(targetIds));
+
+    // Rows for a just-expanded batch aren't in the DOM yet this same
+    // tick — wait a frame so scrollIntoView has something to find.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        rowRefs.current[targetIds[0]]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+
+    const t = setTimeout(() => {
+      setHighlightedIds(new Set());
+      setForceExpandPurchaseId(null);
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [highlight?.token, assets]);
+
 
   /**
    * Patches every asset in a purchase batch with fresh insurance/
@@ -586,6 +638,9 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onUploadPhotos={handleUploadPhotosLocal}
                         onUploadInvoices={handleUploadInvoicesLocal}
                         onDeleteFile={handleDeleteFileLocal}
+                        forceExpand={forceExpandPurchaseId === group[0].purchase_id}
+                        highlightedIds={highlightedIds}
+                        rowRefs={rowRefs}
                       />
                     ) : (
                       <AssetRow key={group[0].id} asset={group[0]}
@@ -606,6 +661,8 @@ export default function InventoryPage({ vendors, locations, onBack, showToast, e
                         onUploadPhotos={handleUploadPhotosLocal}
                         onUploadInvoices={handleUploadInvoicesLocal}
                         onDeleteFile={handleDeleteFileLocal}
+                        highlighted={highlightedIds.has(group[0].id)}
+                        rowRef={(el) => { if (el) rowRefs.current[group[0].id] = el; }}
                       />
                     )
                   ))}
@@ -673,8 +730,15 @@ function StatCard({ label, value, accent = 'text-slate-900', alert = false }) {
  * of the ten" to an employee is simply expanding and picking that
  * row — no special-cased partial-assignment logic needed anywhere).
  */
-function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, selectedIds, onToggleAsset, onToggleGroup, onToggleInsurance, onUploadPhotos, onUploadInvoices, onDeleteFile }) {
+function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, selectedIds, onToggleAsset, onToggleGroup, onToggleInsurance, onUploadPhotos, onUploadInvoices, onDeleteFile, forceExpand = false, highlightedIds, rowRefs }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Jumped here from a Location page with this whole batch targeted
+  // (App.jsx's handleGoToInventoryAsset) — expand it if it wasn't
+  // already, so the highlighted rows are actually visible.
+  useEffect(() => {
+    if (forceExpand) setExpanded(true);
+  }, [forceExpand]);
   const first = group[0];
   const allSelected = group.every((a) => selectedIds.has(a.id));
   const someSelected = !allSelected && group.some((a) => selectedIds.has(a.id));
@@ -725,6 +789,8 @@ function BatchGroupRow({ group, onOpenDetail, onAssign, onDispatch, onReturn, on
           onUploadPhotos={onUploadPhotos}
           onUploadInvoices={onUploadInvoices}
           onDeleteFile={onDeleteFile}
+          highlighted={highlightedIds?.has(a.id)}
+          rowRef={(el) => { if (el && rowRefs) rowRefs.current[a.id] = el; }}
         />
       ))}
     </>
@@ -778,7 +844,7 @@ function AmcStatusCell({ asset: a }) {
   );
 }
 
-function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, nested = false, selected = false, onToggleSelect, onToggleInsurance, onUploadPhotos, onUploadInvoices, onDeleteFile }) {
+function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRetire, onRestore, onDelete, onEdit, onModify, onApprove, onReject, nested = false, selected = false, onToggleSelect, onToggleInsurance, onUploadPhotos, onUploadInvoices, onDeleteFile, highlighted = false, rowRef }) {
   const { canEdit, isAdmin, canApprove } = useAuth();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const holderLabel = a.status === 'in_use' ? a.current_employee_name
@@ -798,7 +864,10 @@ function AssetRow({ asset: a, onOpenDetail, onAssign, onDispatch, onReturn, onRe
   }
 
   return (
-    <tr className={`group border-b border-slate-100 last:border-0 transition-colors hover:bg-slate-50 ${a.is_amc_expiring_soon ? 'bg-purple-50/40' : nested ? 'bg-slate-50/50' : ''}`}>
+    <tr ref={rowRef}
+      className={`group border-b border-slate-100 last:border-0 transition-colors duration-500 hover:bg-slate-50 ${
+        highlighted ? 'bg-amber-100 ring-2 ring-inset ring-amber-400 hover:bg-amber-100' : a.is_amc_expiring_soon ? 'bg-purple-50/40' : nested ? 'bg-slate-50/50' : ''
+      }`}>
       <td className="px-4 py-3">
         <input type="checkbox" checked={selected} onChange={onToggleSelect}
           className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />

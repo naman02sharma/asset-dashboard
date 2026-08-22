@@ -402,16 +402,15 @@ export default function LocationPosPage({ onBack, showToast, initialPoQuery = ''
 // One asset, standalone (not part of a multi-unit batch) — the same
 // row markup this page always used. The asset name is now a button
 // that jumps straight to this exact asset in Inventory Management
-// (same handleGoToAsset flow the global search bar uses) — searches
-// by asset_tag when this unit has one (unique per physical item),
-// falling back to the asset name otherwise.
+// (handleGoToInventoryAsset — highlights the row there for 2s without
+// filtering the list, so every other asset stays visible).
 function LocationAssetRow({ asset: a, canApprove, onApproveAsset, onRejectAsset, nested = false, onGoToAsset }) {
   return (
     <div className={`px-4 py-3 transition-colors hover:bg-slate-50 ${nested ? 'bg-slate-50/50 pl-10' : ''}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           {onGoToAsset ? (
-            <button type="button" onClick={() => onGoToAsset(a.asset_tag || a.asset_name)}
+            <button type="button" onClick={() => onGoToAsset(a)}
               title="Open in Inventory Management"
               className="text-left font-medium text-slate-800 hover:text-brand-600 hover:underline">
               {a.asset_name}
@@ -458,12 +457,28 @@ function LocationAssetBatchGroup({ group, canApprove, onApproveAsset, onRejectAs
 
   return (
     <div className="bg-brand-50/30 transition-colors hover:bg-brand-50/50">
-      <button onClick={() => setExpanded((e) => !e)} className="flex w-full items-center gap-2.5 px-4 py-3 text-left">
+      <div onClick={() => setExpanded((e) => !e)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((x) => !x); } }}
+        role="button" tabIndex={0}
+        className="flex w-full cursor-pointer items-center gap-2.5 px-4 py-3 text-left">
         {expanded ? <ChevronDown size={14} className="shrink-0 text-brand-600" /> : <ChevronRight size={14} className="shrink-0 text-brand-600" />}
         <Boxes size={15} className="shrink-0 text-brand-600" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-slate-800">{first.asset_name}</span>
+            {/* Its own button (not just the outer row) so clicking the
+                name jumps to Inventory Management and highlights this
+                whole batch there for 2s, same as clicking a standalone
+                asset does — while clicking anywhere else on the row
+                still just expands/collapses in place, unchanged. */}
+            {onGoToAsset ? (
+              <button type="button" onClick={(e) => { e.stopPropagation(); onGoToAsset({ purchase_id: first.purchase_id, isBatch: true }); }}
+                title="Open in Inventory Management"
+                className="font-medium text-slate-800 hover:text-brand-600 hover:underline">
+                {first.asset_name}
+              </button>
+            ) : (
+              <span className="font-medium text-slate-800">{first.asset_name}</span>
+            )}
             <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">×{group.length}</span>
             {first.po_number && (
               <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600" title="PO number">
@@ -474,7 +489,7 @@ function LocationAssetBatchGroup({ group, canApprove, onApproveAsset, onRejectAs
           <p className="truncate text-xs text-slate-500">{statusSummary}</p>
         </div>
         <span className="ml-auto shrink-0 font-mono text-sm text-slate-600">{currency(first.cost)} each</span>
-      </button>
+      </div>
       {expanded && group.map((a) => (
         <LocationAssetRow key={a.id} asset={a} nested
           canApprove={canApprove} onApproveAsset={onApproveAsset} onRejectAsset={onRejectAsset}

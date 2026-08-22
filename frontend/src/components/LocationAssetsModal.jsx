@@ -14,11 +14,10 @@ const currency = (n) =>
  * navigating away from Order History.
  *
  * Each row is clickable — jumps straight to that exact asset in
- * Inventory Management (same handleGoToAsset flow the global search
- * bar's "Assets" results already use), closing this modal first.
- * Searches by asset_tag when the unit has one (unique per physical
- * item) so a multi-unit batch lands on the specific unit clicked,
- * falling back to the asset name otherwise.
+ * Inventory Management (same handleGoToInventoryAsset flow the
+ * Location POs page uses), closing this modal first. The whole
+ * Inventory list stays visible — this only highlights the matching
+ * row(s) briefly, it doesn't filter anything out.
  */
 export default function LocationAssetsModal({ locationId, locationName, onClose, onGoToAsset }) {
   const [assets, setAssets] = useState(null);
@@ -68,7 +67,7 @@ export default function LocationAssetsModal({ locationId, locationName, onClose,
               {assets.map((a) => (
                 <li key={a.id}>
                   <button type="button"
-                    onClick={() => { onGoToAsset?.(a.asset_tag || a.asset_name); onClose(); }}
+                    onClick={() => { onGoToAsset?.(a); onClose(); }}
                     title="Open in Inventory Management"
                     className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-left transition-colors hover:border-brand-200 hover:bg-brand-50/40">
                     <div className="min-w-0">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ExternalLink, FileQuestion, AlertTriangle, Download, Printer } from 'lucide-react';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
@@ -22,6 +23,16 @@ const PDF_EXT = /\.pdf$/i;
  * Carries its own Download and Print actions so this is a real
  * destination for viewing insurance/invoice documents, not a dead end
  * that still forces a trip to a new browser tab to do either.
+ *
+ * Portaled straight to document.body (see the matching comment on
+ * FileUploadModal, which this is almost always nested inside of) —
+ * without that, a `position: fixed` modal rendered from a table row
+ * with its own hover transform (e.g. Order History's
+ * `hover:-translate-y-0.5` row styling) stops being positioned
+ * relative to the viewport and instead jumps around relative to that
+ * row, which is what caused this to visibly flicker there. Portaling
+ * makes this behave identically wherever it's opened from — Order
+ * History, Inventory, or anywhere else.
  */
 export default function FilePreviewModal({ file, onClose }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -83,7 +94,7 @@ export default function FilePreviewModal({ file, onClose }) {
     printFrameRef.current = frame;
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 animate-[fadeIn_0.15s_ease-out]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-xl animate-[scaleIn_0.15s_ease-out]">
@@ -137,6 +148,7 @@ export default function FilePreviewModal({ file, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

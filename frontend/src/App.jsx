@@ -132,6 +132,10 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
   // open — the `token` bump gives it a changing `key` for exactly that.
   const [historyNav, setHistoryNav] = useState({ query: '', token: 0 });
   const [inventoryNav, setInventoryNav] = useState({ query: '', token: 0 });
+  // Set by handleGoToInventoryAsset (below) when the click originates
+  // from a location page rather than the global search bar — see that
+  // function for why this is a highlight, not a search filter.
+  const [inventoryHighlight, setInventoryHighlight] = useState({ assetId: null, purchaseId: null, token: 0 });
   const [locationsNav, setLocationsNav] = useState({ poQuery: '', token: 0 });
   // Every other tab (Order History, Home/Inventory, Locations) is its
   // own child component that mounts fresh — with its own `useEffect(
@@ -529,6 +533,30 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
     setView('dashboard');
     setInventoryNav((n) => ({ query: assetName, token: n.token + 1 }));
   }
+  /**
+   * Used by the Location pages (LocationPosPage, LocationAssetsModal)
+   * instead of handleGoToAsset above — that one searches by NAME,
+   * which filters the Inventory list down to matches and hides every
+   * other asset until the search is cleared (the "all other assets
+   * disappear" bug). This jumps to Inventory with NO filter applied —
+   * the full list stays visible — and instead briefly highlights
+   * something for 2 seconds so it's easy to spot, then fades back to
+   * normal:
+   *  - clicking one standalone asset highlights just that row
+   *    (asset.id)
+   *  - clicking a bulk/partial-delivery batch's header (asset.isBatch)
+   *    highlights every unit in that whole batch instead, and expands
+   *    the batch if it was collapsed so the highlighted rows are
+   *    actually visible.
+   */
+  function handleGoToInventoryAsset(asset) {
+    setView('dashboard');
+    if (asset.isBatch) {
+      setInventoryHighlight({ assetId: null, purchaseId: asset.purchase_id, token: Date.now() });
+    } else {
+      setInventoryHighlight({ assetId: asset.id, purchaseId: null, token: Date.now() });
+    }
+  }
   function handleGoToVendor(vendorName) {
     // A vendor could show up on either side — Order History is the
     // more natural landing spot since spend/vendor questions are
@@ -733,7 +761,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           onRecordDelivery={handleRecordDelivery}
           onEditPurchase={handleUpdatePurchase}
           onSummaryChange={loadSummary}
-          onGoToAsset={handleGoToAsset}
+          onGoToAsset={handleGoToInventoryAsset}
         />
       ) : view === 'purchases' ? (
         <PurchasesPanel
@@ -784,7 +812,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
           onBack={() => setView('dashboard')}
           showToast={showToast}
           onSummaryChange={loadSummary}
-          onGoToAsset={handleGoToAsset}
+          onGoToAsset={handleGoToInventoryAsset}
         />
       ) : (
         <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-6">
@@ -799,6 +827,7 @@ function Dashboard({ user, onLogout, showSettings, setShowSettings, onSettingsSa
             locations={locations}
             showToast={showToast}
             initialQuery={inventoryNav.query}
+            highlight={inventoryHighlight}
             embedded
             onSummaryChange={loadSummary}
             onInsuranceToggle={handleInsuranceToggle}

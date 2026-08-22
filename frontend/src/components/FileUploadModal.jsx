@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, UploadCloud, FileIcon, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import FilePreviewModal from './FilePreviewModal.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -14,6 +15,15 @@ import { openOrPreviewFile } from '../utils/files.js';
  *
  * Locks background scroll while open and restores it on unmount/close
  * so this never leaves the page stuck unscrollable.
+ *
+ * Portaled straight to document.body — this (and the FilePreviewModal
+ * it can open) is `position: fixed`, and any row it's opened from
+ * that has its own CSS transform (Order History's cards use
+ * `hover:-translate-y-0.5`) would otherwise become this modal's
+ * containing block instead of the viewport, which made the popup's
+ * position/backdrop visibly jump and flicker while the row underneath
+ * was mid-hover-transition. Portaling sidesteps that regardless of
+ * which row or page this gets opened from.
  */
 export default function FileUploadModal({ label, icon: Icon = FileIcon, accept, hint, files, recordId, onUpload, onDelete, onClose }) {
   const { isAdmin } = useAuth();
@@ -77,7 +87,7 @@ export default function FileUploadModal({ label, icon: Icon = FileIcon, accept, 
     }
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-[fadeIn_0.15s_ease-out]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -148,7 +158,7 @@ export default function FileUploadModal({ label, icon: Icon = FileIcon, accept, 
                 {files.map((f) => (
                   <li key={f.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2">
                     <button type="button" onClick={() => openOrPreviewFile(f, setPreviewFile)}
-                      title={/\.pdf$/i.test(f.name || '') ? 'Open in a new tab' : 'Preview'}
+                      title="Preview"
                       className="flex min-w-0 items-center gap-2 text-sm text-slate-600 hover:text-brand-600 hover:underline">
                       <FileIcon size={14} className="shrink-0 text-slate-400" />
                       <span className="truncate">{f.name || 'file'}</span>
@@ -175,6 +185,7 @@ export default function FileUploadModal({ label, icon: Icon = FileIcon, accept, 
       </div>
 
       {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
-    </div>
+    </div>,
+    document.body
   );
 }
